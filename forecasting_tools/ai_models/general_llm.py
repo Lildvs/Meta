@@ -84,8 +84,7 @@ class GeneralLlm(
             "timeout": 120,
         },
         "perplexity/sonar-deep-research": {
-            "timeout": 60
-            * 60,  # Can take 30min+ at times according to Perplexity https://docs.perplexity.ai/models/model-cards#search-models:~:text=models%20may%20take-,30%2B%20minutes,-to%20process%20and
+            "timeout": 60 * 60,  # Can take 30min+ at times according to Perplexity
         },
     }
 

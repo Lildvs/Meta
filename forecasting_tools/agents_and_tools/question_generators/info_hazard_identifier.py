@@ -43,7 +43,7 @@ class InfoHazardIdentification(BaseModel):
 class InfoHazardIdentifier:
     def __init__(
         self,
-        model: str | GeneralLlm = "openrouter/perplexity/sonar-reasoning-pro",
+        model: str | GeneralLlm = "perplexity/sonar-deep-research",
     ) -> None:
         self.model: GeneralLlm = GeneralLlm.to_llm(model)
 

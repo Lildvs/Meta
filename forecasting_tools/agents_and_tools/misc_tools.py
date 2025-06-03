@@ -33,7 +33,7 @@ async def perplexity_pro_search(query: str) -> str:
     This is Perplexity's highest quality search model.
     """
     llm = GeneralLlm(
-        model="openrouter/perplexity/sonar-reasoning-pro",
+        model="perplexity/sonar-deep-research",
         reasoning_effort="high",
         web_search_options={"search_context_size": "high"},
         populate_citations=True,
@@ -50,7 +50,7 @@ async def perplexity_quick_search(query: str) -> str:
     Good for getting a simple and quick answer to a question
     """
     llm = GeneralLlm(
-        model="openrouter/perplexity/sonar",
+        model="perplexity/sonar-deep-research",
         web_search_options={"search_context_size": "high"},
         populate_citations=True,
     )
@@ -64,7 +64,7 @@ async def smart_searcher_search(query: str) -> str:
     This will provide a LLM answer with citations.
     Citations will include url text fragments for faster fact checking.
     """
-    return await SmartSearcher(model="openrouter/openai/o4-mini").invoke(query)
+    return await SmartSearcher(model="perplexity/sonar-deep-research").invoke(query)
 
 
 @agent_tool
