@@ -81,8 +81,16 @@ class Q2TemplateBot2025(ForecastBot):
                 """
             )
 
-            if isinstance(researcher, GeneralLlm):
-                research = await researcher.invoke(prompt)
+            if researcher.startswith("smart-searcher"):
+                model_name = researcher.removeprefix("smart-searcher/")
+                searcher = SmartSearcher(
+                    model=model_name,
+                    temperature=0,
+                    num_searches_to_run=2,
+                    num_sites_per_search=10,
+                    use_advanced_filters=False,
+                )
+                research = await searcher.invoke(prompt)
             elif researcher == "asknews/news-summaries":
                 research = await AskNewsSearcher().get_formatted_news_async(
                     question.question_text
@@ -101,22 +109,15 @@ class Q2TemplateBot2025(ForecastBot):
                     search_depth=4,
                     max_depth=6,
                 )
-            elif researcher.startswith("smart-searcher"):
-                model_name = researcher.removeprefix("smart-searcher/")
-                searcher = SmartSearcher(
-                    model=model_name,
-                    temperature=0,
-                    num_searches_to_run=2,
-                    num_sites_per_search=10,
-                    use_advanced_filters=False,
-                )
-                research = await searcher.invoke(prompt)
             elif not researcher or researcher == "None":
                 research = ""
             else:
-                research = await self.get_llm("researcher", "llm").invoke(
-                    prompt
+                # Final fallback to direct Perplexity API
+                model = GeneralLlm(
+                    model="perplexity/sonar-pro",  # Using direct Perplexity API
+                    temperature=0.1,
                 )
+                research = await model.invoke(prompt)
             logger.info(
                 f"Found Research for URL {question.page_url}:\n{research}"
             )
@@ -352,12 +353,12 @@ if __name__ == "__main__":
         skip_previously_forecasted_questions=True,
         # llms={  # choose your model names or GeneralLlm llms here, otherwise defaults will be chosen for you
         #     "default": GeneralLlm(
-        #         model="metaculus/anthropic/claude-3-5-sonnet-20241022", # or "openrouter/openai/gpt-4o-mini", "openai/gpt-4o", etc (see docs for litellm)
+        #         model="metaculus/anthropic/claude-3-5-sonnet-20241022", # or "perplexity/sonar-pro", "openai/gpt-4o", etc (see docs for litellm)
         #         temperature=0.3,
         #         timeout=40,
         #         allowed_tries=2,
         #     ),
-        #     "summarizer": "openai/gpt-4o-mini",
+        #     "summarizer": "perplexity/sonar-pro",
         #     "researcher": "asknews/deep-research/low",
         # },
     )
