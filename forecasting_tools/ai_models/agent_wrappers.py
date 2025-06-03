@@ -2,6 +2,7 @@ import asyncio
 from typing import Callable, overload, Any, List, Dict, AsyncGenerator, Tuple
 import os
 import litellm  # Add litellm import
+import logging
 
 import nest_asyncio
 from agents import Agent, FunctionTool, Runner, function_tool
@@ -10,6 +11,7 @@ from agents.tool import ToolFunction
 
 from forecasting_tools.ai_models.model_tracker import ModelTracker
 
+logger = logging.getLogger(__name__)
 nest_asyncio.apply()
 
 # Set global litellm configuration
@@ -44,25 +46,47 @@ class AgentSdkLlm(LitellmModel):
         Ensures messages follow Perplexity's requirement of alternating user/assistant roles
         after any system messages.
         """
+        # Check if messages are already ordered (to prevent double-ordering)
+        if hasattr(messages, '_perplexity_ordered'):
+            logger.info(f"PERPLEXITY DEBUG: Messages already ordered, skipping")
+            return messages
+
+        logger.info(f"PERPLEXITY DEBUG: Input messages: {[msg.get('role', 'unknown') for msg in messages]}")
+
         # First, separate system messages
-        system_messages = [msg for msg in messages if msg["role"] == "system"]
-        other_messages = [msg for msg in messages if msg["role"] != "system"]
+        system_messages = [msg for msg in messages if msg.get("role") == "system"]
+        other_messages = [msg for msg in messages if msg.get("role") != "system"]
 
         # Ensure alternating user/assistant messages
         ordered_messages = []
         for i, msg in enumerate(other_messages):
-            if i > 0 and msg["role"] == other_messages[i-1]["role"]:
+            if i > 0 and msg.get("role") == other_messages[i-1].get("role"):
                 # If we have consecutive messages of the same role, combine them
-                ordered_messages[-1]["content"] += "\n" + msg["content"]
+                if ordered_messages:
+                    ordered_messages[-1]["content"] += "\n" + str(msg.get("content", ""))
+                else:
+                    ordered_messages.append(msg)
             else:
                 ordered_messages.append(msg)
 
         # Ensure we start with a user message if there are no system messages
-        if not system_messages and ordered_messages and ordered_messages[0]["role"] != "user":
+        if not system_messages and ordered_messages and ordered_messages[0].get("role") != "user":
             # Add an empty user message at the start
             ordered_messages.insert(0, {"role": "user", "content": ""})
 
-        return system_messages + ordered_messages
+        final_messages = system_messages + ordered_messages
+
+        # Mark as ordered to prevent double-ordering
+        try:
+            final_messages._perplexity_ordered = True
+        except AttributeError:
+            # If we can't set the attribute (list doesn't support it), that's okay
+            pass
+
+        logger.info(f"PERPLEXITY DEBUG: Output messages: {[msg.get('role', 'unknown') for msg in final_messages]}")
+        logger.info(f"PERPLEXITY DEBUG: Full messages: {final_messages}")
+
+        return final_messages
 
     async def _fetch_response(
         self, *args, **kwargs
@@ -70,10 +94,11 @@ class AgentSdkLlm(LitellmModel):
         """
         Override _fetch_response to ensure proper message ordering for Perplexity at the lowest level.
         """
-        # Extract messages from the first argument if it's a list of dicts
+        # Only apply ordering if this is a Perplexity model and we have messages to order
         if "perplexity" in self.model and args:
             messages = args[0]
-            if isinstance(messages, list) and messages and isinstance(messages[0], dict):
+            if isinstance(messages, list) and messages and isinstance(messages[0], dict) and any(msg.get("role") for msg in messages):
+                logger.info(f"PERPLEXITY DEBUG: Applying message ordering in _fetch_response")
                 ordered_messages = self._order_messages_for_perplexity(messages)
                 # Replace the first argument with ordered messages
                 args = (ordered_messages,) + args[1:]
@@ -85,15 +110,8 @@ class AgentSdkLlm(LitellmModel):
     ) -> AsyncGenerator[Any, None]:
         """
         Override stream_response to ensure proper message ordering for Perplexity.
+        Note: We rely on _fetch_response to do the actual ordering to avoid double-ordering.
         """
-        # Extract messages from the first argument if it's a list of dicts
-        if "perplexity" in self.model and args:
-            messages = args[0]
-            if isinstance(messages, list) and messages and isinstance(messages[0], dict):
-                ordered_messages = self._order_messages_for_perplexity(messages)
-                # Replace the first argument with ordered messages
-                args = (ordered_messages,) + args[1:]
-
         async for event in super().stream_response(*args, **kwargs):
             yield event
 
@@ -102,6 +120,7 @@ class AgentSdkLlm(LitellmModel):
 
         # Handle message ordering for Perplexity models
         if "perplexity" in self.model and "messages" in kwargs:
+            logger.info(f"PERPLEXITY DEBUG: Applying message ordering in get_response")
             kwargs["messages"] = self._order_messages_for_perplexity(kwargs["messages"])
 
         response = await super().get_response(*args, **kwargs)
