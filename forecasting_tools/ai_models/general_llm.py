@@ -172,7 +172,16 @@ class GeneralLlm(
             self._litellm_model
         )
 
-        if self._use_metaculus_proxy:
+        # Force direct API calls and prevent OpenRouter routing
+        if "perplexity" in self.model:
+            self.litellm_kwargs["base_url"] = "https://api.perplexity.ai"
+            self.litellm_kwargs["api_key"] = os.getenv("PERPLEXITY_API_KEY")
+            self.litellm_kwargs["extra_headers"] = {
+                "Content-Type": "application/json",
+            }
+            # Prevent OpenRouter routing
+            self.litellm_kwargs["custom_llm_provider"] = "perplexity"
+        elif self._use_metaculus_proxy:
             if self.litellm_kwargs.get("base_url") is not None:
                 raise ValueError(
                     "base_url should not be set if use_metaculus_proxy is True"
@@ -198,16 +207,6 @@ class GeneralLlm(
                 self.litellm_kwargs["api_key"] = METACULUS_TOKEN
         elif self._use_exa and self.litellm_kwargs.get("api_key") is None:
             self.litellm_kwargs["api_key"] = os.getenv("EXA_API_KEY")
-        elif "perplexity" in self.model:
-            # Configure Perplexity API
-            if self.litellm_kwargs.get("base_url") is None:
-                self.litellm_kwargs["base_url"] = "https://api.perplexity.ai"
-            if self.litellm_kwargs.get("api_key") is None:
-                self.litellm_kwargs["api_key"] = os.getenv("PERPLEXITY_API_KEY")
-            if self.litellm_kwargs.get("extra_headers") is None:
-                self.litellm_kwargs["extra_headers"] = {
-                    "Content-Type": "application/json",
-                }
 
         valid_acompletion_params = set(
             inspect.signature(acompletion).parameters.keys()
