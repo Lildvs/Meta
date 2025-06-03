@@ -20,9 +20,6 @@ class AgentSdkLlm(LitellmModel):
     def __init__(
         self,
         model: str,
-        temperature: float | None = None,
-        timeout: float | None = None,
-        max_tokens: int | None = None,
         **litellm_kwargs: Any,
     ):
         updated_litellm_kwargs = litellm_kwargs.copy()
@@ -41,16 +38,12 @@ class AgentSdkLlm(LitellmModel):
                 updated_litellm_kwargs["extra_headers"] = {}
             updated_litellm_kwargs["extra_headers"]["Content-Type"] = "application/json"
 
-
         # Note: Similar blocks could be added here for other direct providers
         # if AgentSdkLlm needs to support them directly (e.g., exa, direct OpenAI, Anthropic).
 
         super().__init__(
             model=model,
-            temperature=temperature,
-            timeout=timeout,
-            max_tokens=max_tokens,
-            **updated_litellm_kwargs, # Pass the potentially modified kwargs
+            **updated_litellm_kwargs,  # Pass the potentially modified kwargs
         )
 
     async def get_response(self, *args, **kwargs):  # NOSONAR
