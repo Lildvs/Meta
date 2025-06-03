@@ -365,7 +365,25 @@ class GeneralLlm(
                 system_prompt is None
             ), "System prompt cannot be used with list of messages since the list may include a system message"
             user_input = typeguard.check_type(user_input, list[dict[str, str]])
-            messages = user_input
+
+            # Ensure proper message ordering for Perplexity
+            if "perplexity" in self.model.lower():
+                # First, separate system messages
+                system_messages = [msg for msg in user_input if msg["role"] == "system"]
+                other_messages = [msg for msg in user_input if msg["role"] != "system"]
+
+                # Ensure alternating user/assistant messages
+                ordered_messages = []
+                for i, msg in enumerate(other_messages):
+                    if i > 0 and msg["role"] == other_messages[i-1]["role"]:
+                        # If we have consecutive messages of the same role, combine them
+                        ordered_messages[-1]["content"] += "\n" + msg["content"]
+                    else:
+                        ordered_messages.append(msg)
+
+                messages = system_messages + ordered_messages
+            else:
+                messages = user_input
         elif isinstance(user_input, str):
             user_message: dict[str, str] = {
                 "role": "user",
