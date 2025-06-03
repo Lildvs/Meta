@@ -150,6 +150,7 @@ class GeneralLlm(
         exa_prefix = "exa/"
         openai_prefix = "openai/"
         anthropic_prefix = "anthropic/"
+        openrouter_prefix = "openrouter/"
         self._use_metaculus_proxy = model.startswith(metaculus_prefix)
         self._use_exa = model.startswith(exa_prefix)
         prefixes_in_operational_order = [
@@ -157,6 +158,7 @@ class GeneralLlm(
             exa_prefix,
             openai_prefix,
             anthropic_prefix,
+            openrouter_prefix,
         ]
 
         # prefix removal is to help with matching with model cost lists
@@ -172,8 +174,8 @@ class GeneralLlm(
             self._litellm_model
         )
 
-        # Force direct API calls and prevent OpenRouter routing
-        if "perplexity" in self.model:
+        # Force direct API calls for Perplexity models regardless of prefix
+        if "perplexity" in self._litellm_model.lower():
             self.litellm_kwargs["base_url"] = "https://api.perplexity.ai"
             self.litellm_kwargs["api_key"] = os.getenv("PERPLEXITY_API_KEY")
             self.litellm_kwargs["extra_headers"] = {
