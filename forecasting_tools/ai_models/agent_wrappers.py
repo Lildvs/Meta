@@ -1,5 +1,5 @@
 import asyncio
-from typing import Callable, overload, Any, List, Dict, AsyncGenerator
+from typing import Callable, overload, Any, List, Dict, AsyncGenerator, Tuple
 import os
 import litellm  # Add litellm import
 
@@ -7,7 +7,6 @@ import nest_asyncio
 from agents import Agent, FunctionTool, Runner, function_tool
 from agents.extensions.models.litellm_model import LitellmModel
 from agents.tool import ToolFunction
-from agents.result import RawResponsesStreamEvent
 
 from forecasting_tools.ai_models.model_tracker import ModelTracker
 
@@ -65,9 +64,20 @@ class AgentSdkLlm(LitellmModel):
 
         return system_messages + ordered_messages
 
+    async def _fetch_response(
+        self, messages: List[Dict[str, str]], tools: Any = None, stream: bool = False, **kwargs
+    ) -> Tuple[Any, Any]:
+        """
+        Override _fetch_response to ensure proper message ordering for Perplexity at the lowest level.
+        """
+        if "perplexity" in self.model:
+            messages = self._order_messages_for_perplexity(messages)
+
+        return await super()._fetch_response(messages, tools=tools, stream=stream, **kwargs)
+
     async def stream_response(
         self, messages: List[Dict[str, str]], **kwargs
-    ) -> AsyncGenerator[RawResponsesStreamEvent, None]:
+    ) -> AsyncGenerator[Any, None]:
         """
         Override stream_response to ensure proper message ordering for Perplexity.
         """
