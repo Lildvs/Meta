@@ -22,29 +22,19 @@ class AgentSdkLlm(LitellmModel):
         model: str,
         **litellm_kwargs: Any,
     ):
-        updated_litellm_kwargs = litellm_kwargs.copy()
+        # First initialize with just the model
+        super().__init__(model=model)
 
+        # Then configure for Perplexity if needed
         if "perplexity" in model:
-            # Ensure litellm uses Perplexity API directly, not via OpenRouter
-            updated_litellm_kwargs["custom_llm_provider"] = "perplexity"
-            # Only set api_key if not already provided in litellm_kwargs
-            if "api_key" not in updated_litellm_kwargs or updated_litellm_kwargs["api_key"] is None:
-                updated_litellm_kwargs["api_key"] = os.getenv("PERPLEXITY_API_KEY")
-            # Only set base_url if not already provided
-            if "base_url" not in updated_litellm_kwargs or updated_litellm_kwargs["base_url"] is None:
-                 updated_litellm_kwargs["base_url"] = "https://api.perplexity.ai"
-            # Standard headers for Perplexity, ensure Content-Type if others are added
-            if "extra_headers" not in updated_litellm_kwargs:
-                updated_litellm_kwargs["extra_headers"] = {}
-            updated_litellm_kwargs["extra_headers"]["Content-Type"] = "application/json"
+            # Configure litellm to use Perplexity API directly
+            self.api_key = os.getenv("PERPLEXITY_API_KEY")
+            self.base_url = "https://api.perplexity.ai"
+            self.extra_headers = {"Content-Type": "application/json"}
 
-        # Note: Similar blocks could be added here for other direct providers
-        # if AgentSdkLlm needs to support them directly (e.g., exa, direct OpenAI, Anthropic).
-
-        super().__init__(
-            model=model,
-            **updated_litellm_kwargs,  # Pass the potentially modified kwargs
-        )
+            # Update any additional kwargs that were passed
+            for key, value in litellm_kwargs.items():
+                setattr(self, key, value)
 
     async def get_response(self, *args, **kwargs):  # NOSONAR
         ModelTracker.give_cost_tracking_warning_if_needed(self.model)
