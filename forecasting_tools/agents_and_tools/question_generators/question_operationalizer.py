@@ -16,7 +16,7 @@ from forecasting_tools.forecast_helpers.structure_output import (
 class QuestionOperationalizer:
     def __init__(
         self,
-        model: str | GeneralLlm = "openrouter/perplexity/sonar-reasoning-pro",
+        model: str | GeneralLlm = "perplexity/sonar-pro",
     ) -> None:
         self.model: GeneralLlm = GeneralLlm.to_llm(model)
         self.example_full_questions = DataOrganizer.load_questions_from_file_path(

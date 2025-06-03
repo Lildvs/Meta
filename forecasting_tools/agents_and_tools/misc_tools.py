@@ -28,43 +28,45 @@ async def get_general_news_with_asknews(topic: str) -> str:
 @agent_tool
 async def perplexity_pro_search(query: str) -> str:
     """
-    Use Perplexity (sonar-reasoning-pro) to search for information on a topic.
-    This will provide a LLM answer with citations.
-    This is Perplexity's highest quality search model.
+    Performs a comprehensive search using Perplexity AI with detailed reasoning.
+    Ideal for in-depth research that requires nuanced understanding and analysis.
     """
-    llm = GeneralLlm(
-        model="openrouter/perplexity/sonar-reasoning-pro",
-        reasoning_effort="high",
-        web_search_options={"search_context_size": "high"},
-        populate_citations=True,
+    model = GeneralLlm(
+        model="perplexity/sonar-pro",
+        temperature=0,
     )
-    return await llm.invoke(query)
+    prompt = f"""
+    You are a helpful research assistant. Please provide a comprehensive and well-researched answer to the following query:
+
+    {query}
+
+    Please provide detailed information with sources and reasoning where applicable.
+    """
+    response = await model.invoke(prompt)
+    return response
 
 
 @agent_tool
 async def perplexity_quick_search(query: str) -> str:
     """
-    Use Perplexity (sonar) to search for information on a topic.
-    This will provide a LLM answer with citations.
-    This is Perplexity's fastest but lowest quality search model.
-    Good for getting a simple and quick answer to a question
+    Performs a quick search using Perplexity AI.
+    Suitable for fast information retrieval and basic fact-checking.
     """
-    llm = GeneralLlm(
-        model="openrouter/perplexity/sonar",
-        web_search_options={"search_context_size": "high"},
-        populate_citations=True,
+    model = GeneralLlm(
+        model="perplexity/sonar",
+        temperature=0,
     )
-    return await llm.invoke(query)
+    response = await model.invoke(query)
+    return response
 
 
 @agent_tool
 async def smart_searcher_search(query: str) -> str:
     """
-    Use SmartSearcher to search for information on a topic.
-    This will provide a LLM answer with citations.
-    Citations will include url text fragments for faster fact checking.
+    Performs an intelligent web search using SmartSearcher.
+    Uses multiple search queries and advanced filtering for comprehensive results.
     """
-    return await SmartSearcher(model="openrouter/openai/o4-mini").invoke(query)
+    return await SmartSearcher(model="gpt-4o-mini").invoke(query)
 
 
 @agent_tool
