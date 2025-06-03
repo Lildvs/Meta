@@ -127,19 +127,30 @@ class AgentSdkLlm(LitellmModel):
     ) -> Tuple[Any, Any]:
         """
         Override _fetch_response to ensure proper message ordering for Perplexity at the lowest level.
+        This method attempts to locate the `messages` argument whether it is passed
+        positionally (second arg) or as a keyword and then applies ordering.
         """
-        if "perplexity" in self.model and args and len(args) > 0:
-            messages = args[0]
-            if isinstance(messages, list) and messages:
+        if "perplexity" in self.model:
+            # Case 1: messages passed positionally as second argument
+            if len(args) >= 2 and isinstance(args[1], list):
                 try:
-                    # Check if first item looks like a message dict
-                    if isinstance(messages[0], dict) and "role" in str(messages[0]):
-                        ordered_messages = self._order_messages_for_perplexity(messages)
-                        args = (ordered_messages,) + args[1:]
-                except (IndexError, TypeError, AttributeError):
-                    # If anything goes wrong, just proceed with original messages
+                    ordered_messages = self._order_messages_for_perplexity(args[1])
+                    args = (args[0], ordered_messages) + args[2:]
+                except Exception:
+                    pass  # fallback to original
+            # Case 2: messages passed positionally as first argument (earlier code)
+            elif len(args) >= 1 and isinstance(args[0], list):
+                try:
+                    ordered_messages = self._order_messages_for_perplexity(args[0])
+                    args = (ordered_messages,) + args[1:]
+                except Exception:
                     pass
-
+            # Case 3: messages passed via kwargs
+            elif "messages" in kwargs and isinstance(kwargs["messages"], list):
+                try:
+                    kwargs["messages"] = self._order_messages_for_perplexity(kwargs["messages"])
+                except Exception:
+                    pass
         return await super()._fetch_response(*args, **kwargs)
 
     async def stream_response(
