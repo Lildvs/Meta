@@ -218,7 +218,7 @@ class TopicGenerator:
     async def get_news_on_random_company(
         cls,
         model: GeneralLlm | str = "gpt-4o",
-        search_model: GeneralLlm | str = "perplexity/sonar-deep-research",
+        search_model: GeneralLlm | str = "openrouter/perplexity/sonar-pro",
     ) -> tuple[OrgInfo, list[str]]:
         from faker import Faker
 

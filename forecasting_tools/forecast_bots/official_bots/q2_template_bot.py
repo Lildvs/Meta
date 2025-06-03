@@ -112,9 +112,9 @@ class Q2TemplateBot2025(ForecastBot):
             elif not researcher or researcher == "None":
                 research = ""
             else:
-                # Use direct Perplexity API for deep research
+                # Final fallback to direct Perplexity API
                 model = GeneralLlm(
-                    model="perplexity/sonar-deep-research",  # Using direct Perplexity API for deep research
+                    model="perplexity/sonar-pro",  # Using direct Perplexity API
                     temperature=0.1,
                 )
                 research = await model.invoke(prompt)
