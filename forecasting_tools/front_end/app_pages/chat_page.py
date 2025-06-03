@@ -48,7 +48,7 @@ logger = logging.getLogger(__name__)
 
 
 DEFAULT_MODEL: str = (
-    "openrouter/google/gemini-2.5-pro-preview"  # "openrouter/anthropic/claude-sonnet-4"
+    "perplexity/sonar-pro"  # Changed from openrouter/google/gemini-2.5-pro-preview
 )
 
 
