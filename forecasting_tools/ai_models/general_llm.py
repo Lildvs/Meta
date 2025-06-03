@@ -198,6 +198,16 @@ class GeneralLlm(
                 self.litellm_kwargs["api_key"] = METACULUS_TOKEN
         elif self._use_exa and self.litellm_kwargs.get("api_key") is None:
             self.litellm_kwargs["api_key"] = os.getenv("EXA_API_KEY")
+        elif "perplexity" in self.model:
+            # Configure Perplexity API
+            if self.litellm_kwargs.get("base_url") is None:
+                self.litellm_kwargs["base_url"] = "https://api.perplexity.ai"
+            if self.litellm_kwargs.get("api_key") is None:
+                self.litellm_kwargs["api_key"] = os.getenv("PERPLEXITY_API_KEY")
+            if self.litellm_kwargs.get("extra_headers") is None:
+                self.litellm_kwargs["extra_headers"] = {
+                    "Content-Type": "application/json",
+                }
 
         valid_acompletion_params = set(
             inspect.signature(acompletion).parameters.keys()
