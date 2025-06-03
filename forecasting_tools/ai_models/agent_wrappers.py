@@ -1,5 +1,5 @@
 import asyncio
-from typing import Callable, overload, Any
+from typing import Callable, overload, Any, List, Dict
 import os
 import litellm  # Add litellm import
 
@@ -39,8 +39,33 @@ class AgentSdkLlm(LitellmModel):
             for key, value in litellm_kwargs.items():
                 setattr(self, key, value)
 
+    def _order_messages_for_perplexity(self, messages: List[Dict[str, str]]) -> List[Dict[str, str]]:
+        """
+        Ensures messages follow Perplexity's requirement of alternating user/assistant roles
+        after any system messages.
+        """
+        # First, separate system messages
+        system_messages = [msg for msg in messages if msg["role"] == "system"]
+        other_messages = [msg for msg in messages if msg["role"] != "system"]
+
+        # Ensure alternating user/assistant messages
+        ordered_messages = []
+        for i, msg in enumerate(other_messages):
+            if i > 0 and msg["role"] == other_messages[i-1]["role"]:
+                # If we have consecutive messages of the same role, combine them
+                ordered_messages[-1]["content"] += "\n" + msg["content"]
+            else:
+                ordered_messages.append(msg)
+
+        return system_messages + ordered_messages
+
     async def get_response(self, *args, **kwargs):  # NOSONAR
         ModelTracker.give_cost_tracking_warning_if_needed(self.model)
+
+        # Handle message ordering for Perplexity models
+        if "perplexity" in self.model and "messages" in kwargs:
+            kwargs["messages"] = self._order_messages_for_perplexity(kwargs["messages"])
+
         response = await super().get_response(*args, **kwargs)
         await asyncio.sleep(
             0.0001

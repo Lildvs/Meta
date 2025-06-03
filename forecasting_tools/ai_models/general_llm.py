@@ -383,6 +383,11 @@ class GeneralLlm(
                     else:
                         ordered_messages.append(msg)
 
+                # Ensure we start with a user message if there are no system messages
+                if not system_messages and ordered_messages and ordered_messages[0]["role"] != "user":
+                    # Add an empty user message at the start
+                    ordered_messages.insert(0, {"role": "user", "content": ""})
+
                 messages = system_messages + ordered_messages
             else:
                 messages = user_input
