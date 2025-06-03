@@ -71,42 +71,78 @@ class AgentSdkLlm(LitellmModel):
         print(f"🔍 PERPLEXITY DEBUG: Found {len(system_messages)} system messages, {len(other_messages)} other messages")
         logger.warning(f"PERPLEXITY DEBUG: Found {len(system_messages)} system messages, {len(other_messages)} other messages")
 
-        # Ensure alternating user/assistant messages
+        if not other_messages:
+            print(f"🔍 PERPLEXITY DEBUG: No non-system messages, returning as-is")
+            logger.warning(f"PERPLEXITY DEBUG: No non-system messages, returning as-is")
+            return messages
+
+        # Build properly alternating messages
         ordered_messages = []
+        current_role = None
+
         for i, msg in enumerate(other_messages):
-            if i > 0 and msg.get("role") == other_messages[i-1].get("role"):
-                # If we have consecutive messages of the same role, combine them
-                if ordered_messages:
-                    ordered_messages[-1]["content"] += "\n" + str(msg.get("content", ""))
-                    print(f"🔍 PERPLEXITY DEBUG: Combined consecutive {msg.get('role')} message")
-                    logger.warning(f"PERPLEXITY DEBUG: Combined consecutive {msg.get('role')} message")
-                else:
-                    ordered_messages.append(msg)
+            msg_role = msg.get("role")
+            msg_content = str(msg.get("content", ""))
+
+            print(f"🔍 PERPLEXITY DEBUG: Processing message {i}: role={msg_role}, content_length={len(msg_content)}")
+            logger.warning(f"PERPLEXITY DEBUG: Processing message {i}: role={msg_role}, content_length={len(msg_content)}")
+
+            if msg_role == current_role and ordered_messages:
+                # Combine with previous message of same role
+                ordered_messages[-1]["content"] += "\n" + msg_content
+                print(f"🔍 PERPLEXITY DEBUG: Combined consecutive {msg_role} message")
+                logger.warning(f"PERPLEXITY DEBUG: Combined consecutive {msg_role} message")
             else:
-                ordered_messages.append(msg)
+                # Add as new message
+                ordered_messages.append({
+                    "role": msg_role,
+                    "content": msg_content
+                })
+                current_role = msg_role
+                print(f"🔍 PERPLEXITY DEBUG: Added new {msg_role} message")
+                logger.warning(f"PERPLEXITY DEBUG: Added new {msg_role} message")
 
-        # Ensure we start with a user message if there are no system messages
-        if not system_messages and ordered_messages and ordered_messages[0].get("role") != "user":
-            # Add an empty user message at the start
+        # Ensure we have proper alternation: must start with user after system messages
+        if ordered_messages and ordered_messages[0].get("role") != "user":
+            print(f"🔍 PERPLEXITY DEBUG: First message is not user, inserting empty user message")
+            logger.warning(f"PERPLEXITY DEBUG: First message is not user, inserting empty user message")
             ordered_messages.insert(0, {"role": "user", "content": ""})
-            print(f"🔍 PERPLEXITY DEBUG: Added empty user message at start")
-            logger.warning(f"PERPLEXITY DEBUG: Added empty user message at start")
 
-        final_messages = system_messages + ordered_messages
+        # Final validation: ensure strict alternation
+        final_messages = []
+        expected_role = "user"
+
+        for msg in ordered_messages:
+            msg_role = msg.get("role")
+            if msg_role == expected_role:
+                final_messages.append(msg)
+                expected_role = "assistant" if expected_role == "user" else "user"
+                print(f"🔍 PERPLEXITY DEBUG: Added {msg_role} message, next expected: {expected_role}")
+                logger.warning(f"PERPLEXITY DEBUG: Added {msg_role} message, next expected: {expected_role}")
+            elif msg_role in ["user", "assistant"]:
+                # Skip messages that break alternation
+                print(f"🔍 PERPLEXITY DEBUG: Skipping {msg_role} message to maintain alternation")
+                logger.warning(f"PERPLEXITY DEBUG: Skipping {msg_role} message to maintain alternation")
+            else:
+                print(f"🔍 PERPLEXITY DEBUG: Unknown role {msg_role}, skipping")
+                logger.warning(f"PERPLEXITY DEBUG: Unknown role {msg_role}, skipping")
+
+        # Combine system messages with ordered messages
+        result_messages = system_messages + final_messages
 
         # Mark as ordered to prevent double-ordering
         try:
-            final_messages._perplexity_ordered = True
+            result_messages._perplexity_ordered = True
         except AttributeError:
             # If we can't set the attribute (list doesn't support it), that's okay
             pass
 
-        print(f"🔍 PERPLEXITY DEBUG: Output messages: {[msg.get('role', 'unknown') for msg in final_messages]}")
-        logger.warning(f"PERPLEXITY DEBUG: Output messages: {[msg.get('role', 'unknown') for msg in final_messages]}")
-        print(f"🔍 PERPLEXITY DEBUG: Full messages: {final_messages}")
-        logger.warning(f"PERPLEXITY DEBUG: Full messages: {final_messages}")
+        print(f"🔍 PERPLEXITY DEBUG: Final output roles: {[msg.get('role', 'unknown') for msg in result_messages]}")
+        logger.warning(f"PERPLEXITY DEBUG: Final output roles: {[msg.get('role', 'unknown') for msg in result_messages]}")
+        print(f"🔍 PERPLEXITY DEBUG: Full final messages: {result_messages}")
+        logger.warning(f"PERPLEXITY DEBUG: Full final messages: {result_messages}")
 
-        return final_messages
+        return result_messages
 
     async def _fetch_response(
         self, *args, **kwargs
