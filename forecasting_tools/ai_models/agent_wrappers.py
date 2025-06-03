@@ -1,5 +1,7 @@
 import asyncio
-from typing import Callable, overload
+from typing import Callable, overload, Any
+import os
+import litellm  # Add litellm import
 
 import nest_asyncio
 from agents import Agent, FunctionTool, Runner, function_tool
@@ -10,11 +12,32 @@ from forecasting_tools.ai_models.model_tracker import ModelTracker
 
 nest_asyncio.apply()
 
+# Set global litellm configuration
+litellm.drop_params = True
 
 class AgentSdkLlm(LitellmModel):
     """
-    Wrapper around openai-agent-sdk's LiteLlm Model for later extension
+    Wrapper around openai-agent-sdk's LiteLlm Model for later extension.
+    This class ensures that direct API calls (e.g., to Perplexity) are correctly configured.
     """
+    def __init__(
+        self,
+        model: str,
+        **litellm_kwargs: Any,
+    ):
+        # First initialize with just the model
+        super().__init__(model=model)
+
+        # Then configure for Perplexity if needed
+        if "perplexity" in model:
+            # Configure litellm to use Perplexity API directly
+            self.api_key = os.getenv("PERPLEXITY_API_KEY")
+            self.base_url = "https://api.perplexity.ai"
+            self.extra_headers = {"Content-Type": "application/json"}
+
+            # Update any additional kwargs that were passed
+            for key, value in litellm_kwargs.items():
+                setattr(self, key, value)
 
     async def get_response(self, *args, **kwargs):  # NOSONAR
         ModelTracker.give_cost_tracking_warning_if_needed(self.model)
