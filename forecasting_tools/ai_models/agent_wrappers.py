@@ -1,5 +1,5 @@
 import asyncio
-from typing import Callable, overload, Any, List, Dict
+from typing import Callable, overload, Any, List, Dict, AsyncGenerator
 import os
 import litellm  # Add litellm import
 
@@ -7,6 +7,7 @@ import nest_asyncio
 from agents import Agent, FunctionTool, Runner, function_tool
 from agents.extensions.models.litellm_model import LitellmModel
 from agents.tool import ToolFunction
+from agents.result import RawResponsesStreamEvent
 
 from forecasting_tools.ai_models.model_tracker import ModelTracker
 
@@ -57,7 +58,24 @@ class AgentSdkLlm(LitellmModel):
             else:
                 ordered_messages.append(msg)
 
+        # Ensure we start with a user message if there are no system messages
+        if not system_messages and ordered_messages and ordered_messages[0]["role"] != "user":
+            # Add an empty user message at the start
+            ordered_messages.insert(0, {"role": "user", "content": ""})
+
         return system_messages + ordered_messages
+
+    async def stream_response(
+        self, messages: List[Dict[str, str]], **kwargs
+    ) -> AsyncGenerator[RawResponsesStreamEvent, None]:
+        """
+        Override stream_response to ensure proper message ordering for Perplexity.
+        """
+        if "perplexity" in self.model:
+            messages = self._order_messages_for_perplexity(messages)
+
+        async for event in super().stream_response(messages, **kwargs):
+            yield event
 
     async def get_response(self, *args, **kwargs):  # NOSONAR
         ModelTracker.give_cost_tracking_warning_if_needed(self.model)
