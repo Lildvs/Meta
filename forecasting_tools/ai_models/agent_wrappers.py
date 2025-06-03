@@ -65,15 +65,20 @@ class AgentSdkLlm(LitellmModel):
         return system_messages + ordered_messages
 
     async def _fetch_response(
-        self, messages: List[Dict[str, str]], tools: Any = None, stream: bool = False, **kwargs
+        self, *args, **kwargs
     ) -> Tuple[Any, Any]:
         """
         Override _fetch_response to ensure proper message ordering for Perplexity at the lowest level.
         """
-        if "perplexity" in self.model:
-            messages = self._order_messages_for_perplexity(messages)
+        # Extract messages from the first argument if it's a list of dicts
+        if "perplexity" in self.model and args:
+            messages = args[0]
+            if isinstance(messages, list) and messages and isinstance(messages[0], dict):
+                ordered_messages = self._order_messages_for_perplexity(messages)
+                # Replace the first argument with ordered messages
+                args = (ordered_messages,) + args[1:]
 
-        return await super()._fetch_response(messages, tools=tools, stream=stream, **kwargs)
+        return await super()._fetch_response(*args, **kwargs)
 
     async def stream_response(
         self, *args, **kwargs
