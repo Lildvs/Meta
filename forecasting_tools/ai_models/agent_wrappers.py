@@ -54,10 +54,14 @@ class AgentSdkLlm(LitellmModel):
         user_assistant_messages = []
 
         for msg in messages:
-            if msg.get("role") == "system":
+            role = msg.get("role")
+            if role == "system":
                 system_messages.append(msg)
-            elif msg.get("role") in ["user", "assistant"]:
+            elif role in ["user", "assistant"]:
                 user_assistant_messages.append(msg)
+
+        # Keep only the last system message if multiple were provided
+        system_messages = system_messages[-1:]  # Perplexity allows at most one system message
 
         if not user_assistant_messages:
             return messages
