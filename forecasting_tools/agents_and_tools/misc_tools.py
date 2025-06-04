@@ -13,6 +13,9 @@ from forecasting_tools.forecast_helpers.metaculus_api import (
     MetaculusQuestion,
 )
 from forecasting_tools.forecast_helpers.smart_searcher import SmartSearcher
+from forecasting_tools.forecast_helpers.research_orchestrator import (
+    orchestrate_research,
+)
 
 
 @agent_tool
@@ -126,3 +129,35 @@ def create_tool_for_forecasting_bot(
         return report.explanation
 
     return forecast_question_tool
+
+
+# ---------------------------------------------------
+# Unified Research Tool (uses orchestrator)
+# ---------------------------------------------------
+
+
+@agent_tool
+async def run_research(query: str, depth: str = "quick") -> str:  # noqa: D401
+    """Run multi-source research.
+
+    • **quick**  – SmartSearcher + AskNews if keys
+    • **deep**   – quick sources **plus** Perplexity deep search
+
+    Returns a markdown bullet list of merged snippets with source tags.
+    """
+
+    if depth not in {"quick", "deep"}:
+        raise ValueError("depth must be 'quick' or 'deep'")
+
+    snippets = await orchestrate_research(query, depth=depth)  # type: ignore[arg-type]
+
+    # Simple markdown formatting for now
+    lines: list[str] = ["### Research findings:\n"]
+    for snip in snippets:
+        src = snip["source"]
+        txt = snip["text"].strip()
+        if not txt:
+            continue
+        lines.append(f"* **{src}** – {txt}")
+
+    return "\n".join(lines)
