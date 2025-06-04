@@ -10,7 +10,8 @@ from agents.extensions.models.litellm_model import LitellmModel
 from agents.tool import ToolFunction
 
 from forecasting_tools.ai_models.model_tracker import ModelTracker
-from forecasting_tools.forecast_helpers.research_orchestrator import orchestrate_research
+# NOTE: Avoid importing orchestrate_research at module load time to prevent circular imports.
+# It will be imported lazily inside methods when needed.
 
 logger = logging.getLogger(__name__)
 nest_asyncio.apply()
@@ -195,6 +196,7 @@ class AgentSdkLlm(LitellmModel):
                     confidence = await self._assess_confidence(user_prompt, response)
                     if confidence < 0.7:
                         # run deep research and retry once
+                        from forecasting_tools.forecast_helpers.research_orchestrator import orchestrate_research  # noqa: WPS433 – local import to avoid circular dependency
                         snippets = await orchestrate_research(user_prompt, depth="deep")
                         research_text = "\n\n### Additional research\n" + "\n".join(
                             f"* {s['text']}" for s in snippets

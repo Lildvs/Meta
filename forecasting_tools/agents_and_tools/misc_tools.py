@@ -1,4 +1,5 @@
 import asyncio
+import os
 
 from forecasting_tools.agents_and_tools.question_generators.simple_question import (
     SimpleQuestion,
@@ -13,9 +14,7 @@ from forecasting_tools.forecast_helpers.metaculus_api import (
     MetaculusQuestion,
 )
 from forecasting_tools.forecast_helpers.smart_searcher import SmartSearcher
-from forecasting_tools.forecast_helpers.research_orchestrator import (
-    orchestrate_research,
-)
+# NOTE: Avoid importing orchestrate_research at module load time to prevent circular imports.
 
 
 @agent_tool
@@ -29,24 +28,72 @@ async def get_general_news_with_asknews(topic: str) -> str:
 
 
 @agent_tool
-async def perplexity_pro_search(query: str) -> str:
-    """
-    Performs a comprehensive search using Perplexity AI with detailed reasoning.
-    Ideal for in-depth research that requires nuanced understanding and analysis.
-    """
-    model = GeneralLlm(
-        model="perplexity/sonar-pro",
-        temperature=0,
-    )
-    prompt = f"""
-    You are a helpful research assistant. Please provide a comprehensive and well-researched answer to the following query:
+async def perplexity_pro_search(query: str) -> list[dict[str, str]]:  # noqa: D401
+    """Deep research via Perplexity.
 
-    {query}
+    Returns a list of ``ResearchSnippet``-style dictionaries rather than a long
+    block of text so that the orchestrator can merge them with other sources.
+    Each snippet has keys:
+    • **source** – "perplexity"
+    • **text**   – a concise sentence + markdown link
 
-    Please provide detailed information with sources and reasoning where applicable.
+    Because the LiteLLM wrapper exposes citations & search_results via
+    ``response.model_extra``, we use ``litellm.acompletion`` directly to get the
+    raw payload.
     """
-    response = await model.invoke(prompt)
-    return response
+
+    try:
+        from litellm import acompletion  # noqa: WPS433 – optional heavyweight import
+    except ImportError:  # pragma: no cover
+        # litellm is already an application dependency, but guard anyway
+        return []
+
+    api_key = os.getenv("PERPLEXITY_API_KEY")
+    if not api_key:
+        return []
+
+    try:
+        response = await acompletion(
+            model="perplexity/sonar-pro",
+            messages=[{"role": "user", "content": query}],
+            api_key=api_key,
+            base_url="https://api.perplexity.ai",
+            extra_headers={"Content-Type": "application/json"},
+        )
+    except Exception:  # noqa: BLE001
+        return []
+
+    snippets: list[dict[str, str]] = []
+
+    # 1) Convert search_results into snippets (preferred – has title)
+    search_results = (response.model_extra or {}).get("search_results")  # type: ignore[attr-defined]
+    if isinstance(search_results, list):
+        for res in search_results:
+            title = res.get("title") or "Perplexity result"
+            url = res.get("url") or ""
+            date = res.get("date")
+            date_txt = f" ({date})" if date else ""
+            snippets.append({
+                "source": "perplexity",
+                "text": f"**{title}**{date_txt}\n[link]({url})",
+            })
+
+    # 2) Fallback – use bare citations if search_results missing
+    if not snippets:
+        citations = (response.model_extra or {}).get("citations")  # type: ignore[attr-defined]
+        if isinstance(citations, list):
+            for url in citations:
+                snippets.append({
+                    "source": "perplexity",
+                    "text": f"Perplexity citation: [link]({url})",
+                })
+
+    # 3) Still nothing? create one snippet from the first 200 chars of content
+    if not snippets:
+        content_preview = response.choices[0].message.content[:200]
+        snippets.append({"source": "perplexity", "text": content_preview})
+
+    return snippets
 
 
 @agent_tool
@@ -148,6 +195,8 @@ async def run_research(query: str, depth: str = "quick") -> str:  # noqa: D401
 
     if depth not in {"quick", "deep"}:
         raise ValueError("depth must be 'quick' or 'deep'")
+
+    from forecasting_tools.forecast_helpers.research_orchestrator import orchestrate_research  # noqa: WPS433 – local import to avoid circular dependency
 
     snippets = await orchestrate_research(query, depth=depth)  # type: ignore[arg-type]
 

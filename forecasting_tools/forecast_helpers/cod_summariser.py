@@ -45,7 +45,8 @@ async def compress(snippets: List[str], max_tokens: int = 350) -> str:  # noqa: 
 
     model_name = os.getenv("COD_MODEL", "gpt-4o-mini")
     llm = GeneralLlm(model=model_name, temperature=0)
-    return await llm.invoke(messages=[
+    messages = [
         {"role": "system", "content": system_prompt},
         {"role": "user", "content": user_prompt},
-    ])
+    ]
+    return await llm.invoke(messages)

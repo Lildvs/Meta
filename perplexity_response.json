@@ -1,0 +1,50 @@
+{
+  "response_text": "Based on the latest information, several significant AI developments have emerged in 2025, showcasing remarkable advancements in the field.\n\n## AI Model Capabilities\n\nAI models have become significantly more powerful and sophisticated in 2025. Models with advanced reasoning capabilities, like OpenAI's o1, can now solve complex problems using logical steps similar to human thinking processes[1]. These capabilities are particularly valuable in specialized fields such as science, coding, mathematics, law, and medicine, where they can compare contracts, generate code, and execute multistep workflows[1].\n\nIn March 2025, DeepSeek released an upgraded version of its DeepSeek-VL model to compete with OpenAI's GPT models, with enhanced multi-modal reasoning capabilities that improve performance across text and image inputs[2]. \n\nIn May 2025, Alibaba launched Qwen3, which has significantly narrowed the technology gap with leading US firms. Qwen3 offers impressive cost efficiency and multilingual capabilities, positioning it as a strong alternative for global enterprises[2].\n\n## Agentic AI\n\nAgentic AI has become a dominant trend in 2025, with AI systems that can perform tasks independently rather than just generating content[3]. This technology is witnessing widespread adoption, with 37% of IT leaders in the US already claiming to have implemented it, and 68% planning to invest in it within six months or less[3].\n\nThese autonomous AI programs primarily operate as focused generative AI bots performing specific tasks, often working together in networks with reduced human intervention compared to previous AI systems[3]. In May 2025, OpenAI launched \"Operator,\" a new AI assistant capable of handling various online tasks independently, such as ordering groceries and processing ticket purchases[2].\n\n## Industry Applications\n\nAI has expanded its presence across multiple industries. Hisense showcased cutting-edge AI-powered home appliances at the 2025 Appliance & Electronics World Expo, including AI-enhanced TVs, smart refrigerators, and intelligent air conditioners that offer improved personalization, energy efficiency, and interconnectivity[2].\n\nThe financial sector is also experiencing significant transformation due to AI advancements, as indicated by Morgan Stanley's insights on AI trends shaping innovation and return on investment in 2025[4].\n\nAI has continued to evolve as a software development tool, changing how applications are designed and built[5]. Companies are increasingly leveraging AI to solve complex programming challenges and automate aspects of the development process.\n\nWith these developments, AI is projected to add $4.4 trillion to the global economy annually, representing one of the most significant economic opportunities of our time[5].",
+  "citations_found": true,
+  "citations_data": [
+    "https://news.microsoft.com/source/features/ai/6-ai-trends-youll-see-more-of-in-2025/",
+    "https://www.crescendo.ai/news/latest-ai-news-and-updates",
+    "https://sloanreview.mit.edu/article/five-trends-in-ai-and-data-science-for-2025/",
+    "https://www.morganstanley.com/insights/articles/ai-trends-reasoning-frontier-models-2025-tmt",
+    "https://explodingtopics.com/blog/future-of-ai"
+  ],
+  "model_extra": {
+    "usage": "Usage(completion_tokens=524, prompt_tokens=11, total_tokens=535, completion_tokens_details=None, prompt_tokens_details=None, search_context_size='low')",
+    "service_tier": null,
+    "citations": [
+      "https://news.microsoft.com/source/features/ai/6-ai-trends-youll-see-more-of-in-2025/",
+      "https://www.crescendo.ai/news/latest-ai-news-and-updates",
+      "https://sloanreview.mit.edu/article/five-trends-in-ai-and-data-science-for-2025/",
+      "https://www.morganstanley.com/insights/articles/ai-trends-reasoning-frontier-models-2025-tmt",
+      "https://explodingtopics.com/blog/future-of-ai"
+    ],
+    "search_results": [
+      {
+        "title": "6 AI trends you'll see more of in 2025 - Microsoft News",
+        "url": "https://news.microsoft.com/source/features/ai/6-ai-trends-youll-see-more-of-in-2025/",
+        "date": "2024-12-05"
+      },
+      {
+        "title": "Latest AI Breakthroughs and News: May-June 2025 - Crescendo.ai",
+        "url": "https://www.crescendo.ai/news/latest-ai-news-and-updates",
+        "date": null
+      },
+      {
+        "title": "Five Trends in AI and Data Science for 2025",
+        "url": "https://sloanreview.mit.edu/article/five-trends-in-ai-and-data-science-for-2025/",
+        "date": "2025-01-08"
+      },
+      {
+        "title": "5 AI Trends Shaping Innovation and ROI in 2025 | Morgan Stanley",
+        "url": "https://www.morganstanley.com/insights/articles/ai-trends-reasoning-frontier-models-2025-tmt",
+        "date": "2025-03-20"
+      },
+      {
+        "title": "Future of AI: 7 Key AI Trends For 2025 & 2026 - Exploding Topics",
+        "url": "https://explodingtopics.com/blog/future-of-ai",
+        "date": "2025-05-27"
+      }
+    ]
+  },
+  "success": true
+}

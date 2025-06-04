@@ -157,3 +157,42 @@ class AskNewsSearcher:
                 raise ValueError("Response is not a CreateDeepNewsResponse")
 
             return response
+
+    async def get_snippets_async(self, query: str) -> list[dict[str, str]]:
+        """Return AskNews results as a list of ResearchSnippet-style dicts.
+
+        Each snippet has keys:
+        • source – always "asknews"
+        • text   – combined title, summary and markdown link
+
+        If AskNews is unavailable (e.g. Free plan 403) this silently returns an empty list so that
+        upstream orchestrators can continue without failure.
+        """
+        try:
+            async with AsyncAskNewsSDK(
+                client_id=self.client_id,
+                client_secret=self.client_secret,
+                scopes={"news"},
+            ) as ask:
+                response = await ask.news.search_news(
+                    query=query,
+                    n_articles=10,
+                    return_type="both",
+                    strategy="latest news",
+                )
+                articles = response.as_dicts
+        except Exception as err:  # noqa: BLE001
+            # Log and gracefully degrade – no AskNews snippets
+            import logging
+            logging.getLogger(__name__).warning("AskNews unavailable: %s", err)
+            return []
+
+        snippets: list[dict[str, str]] = []
+        for art in articles:
+            title = getattr(art, "eng_title", "")
+            summary = getattr(art, "summary", "")
+            url = getattr(art, "article_url", "")
+            source_id = getattr(art, "source_id", "")
+            text = f"**{title}** – {summary}\n[{source_id}]({url})"
+            snippets.append({"source": "asknews", "text": text})
+        return snippets

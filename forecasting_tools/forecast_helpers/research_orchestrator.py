@@ -96,19 +96,16 @@ async def orchestrate_research(query: str, depth: Depth = "quick") -> List[Resea
 
     results = await asyncio.gather(*tasks, return_exceptions=True)
 
-    # Map back to sources.
-    idx = 0
-    snippets.append({"source": "smart_search", "text": str(results[idx])})
-    idx += 1
+    # Map results back to snippets
+    for i, res in enumerate(results):
+        if isinstance(res, Exception):
+            continue
 
-    if ask_task:
-        ask_result = results[idx]
-        snippets.append({"source": "asknews", "text": str(ask_result)})
-        idx += 1
-
-    if deep_task:
-        deep_result = results[idx]
-        snippets.append({"source": "perplexity", "text": str(deep_result)})
+        if isinstance(res, list):
+            snippets.extend(res)
+        else:
+            src_name = ["smart_search", "asknews", "perplexity"][i]
+            snippets.append({"source": src_name, "text": str(res)})
 
     deduped = _dedupe(snippets)
 

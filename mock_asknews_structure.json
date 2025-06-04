@@ -1,0 +1,28 @@
+{
+  "mock_asknews_article_structure": {
+    "note": "This is a mock structure based on the codebase since AskNews requires paid plan",
+    "fields_from_codebase_analysis": {
+      "eng_title": "AI Developments Transform Industries in 2025",
+      "summary": "Artificial intelligence has reached new milestones in 2025, with breakthrough developments in machine learning, natural language processing, and autonomous systems reshaping various industries from healthcare to finance.",
+      "article_url": "https://example.com/ai-developments-2025",
+      "pub_date": "2025-01-20T10:30:00Z",
+      "source_id": "TechNews",
+      "language": "en"
+    },
+    "field_types": {
+      "eng_title": "str",
+      "summary": "str",
+      "article_url": "str",
+      "pub_date": "datetime",
+      "source_id": "str",
+      "language": "str"
+    },
+    "research_snippet_mapping": {
+      "title": "eng_title",
+      "snippet": "summary",
+      "url": "article_url",
+      "date": "pub_date",
+      "source": "source_id"
+    }
+  }
+}
