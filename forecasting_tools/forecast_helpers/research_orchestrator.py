@@ -26,6 +26,7 @@ from forecasting_tools.agents_and_tools.misc_tools import (
     perplexity_pro_search,  # deep research (async agent-tool function)
     perplexity_quick_search,  # unused for now but could support "medium" depth
 )
+from forecasting_tools.forecast_helpers.cod_summariser import compress as cod_compress
 
 logger = logging.getLogger(__name__)
 
@@ -109,4 +110,14 @@ async def orchestrate_research(query: str, depth: Depth = "quick") -> List[Resea
         deep_result = results[idx]
         snippets.append({"source": "perplexity", "text": str(deep_result)})
 
-    return _dedupe(snippets)
+    deduped = _dedupe(snippets)
+
+    # Optional CoD compression for long outputs
+    if os.getenv("ENABLE_COD_SUMMARY", "TRUE").upper() == "TRUE" and len(deduped) > 6:
+        texts = [s["text"] for s in deduped]
+        try:
+            summary = await cod_compress(texts)
+            deduped = [{"source": "cod_summary", "text": summary}]
+        except Exception as err:  # noqa: BLE001
+            logger.warning("CoD summariser failed: %s", err)
+    return deduped
