@@ -10,6 +10,7 @@ from agents.extensions.models.litellm_model import LitellmModel
 from agents.tool import ToolFunction
 
 from forecasting_tools.ai_models.model_tracker import ModelTracker
+from forecasting_tools.forecast_helpers.research_orchestrator import orchestrate_research
 
 logger = logging.getLogger(__name__)
 nest_asyncio.apply()
@@ -178,11 +179,63 @@ class AgentSdkLlm(LitellmModel):
                 pass
 
         response = await super().get_response(*args, **kwargs)
+
+        # ---------------- Self-refine loop -----------------
+        if os.getenv("SELF_REFINE", "TRUE").upper() == "TRUE":
+            try:
+                # Extract the last user prompt from messages (assumes list of dicts)
+                user_prompt: str | None = None
+                if "messages" in kwargs and isinstance(kwargs["messages"], list):
+                    for msg in reversed(kwargs["messages"]):
+                        if msg.get("role") == "user":
+                            user_prompt = str(msg.get("content", ""))
+                            break
+
+                if user_prompt:
+                    confidence = await self._assess_confidence(user_prompt, response)
+                    if confidence < 0.7:
+                        # run deep research and retry once
+                        snippets = await orchestrate_research(user_prompt, depth="deep")
+                        research_text = "\n\n### Additional research\n" + "\n".join(
+                            f"* {s['text']}" for s in snippets
+                        )
+
+                        # Append research to user messages and rerun
+                        new_messages = kwargs.get("messages", []).copy()
+                        new_messages.append({"role": "system", "content": research_text})
+                        refined = await super().get_response(messages=new_messages)
+                        response = refined
+            except Exception as err:  # noqa: BLE001
+                logger.error("Self-refine loop failed: %s", err)
+
         await asyncio.sleep(
             0.0001
         )  # For whatever reason, it seems you need to await a coroutine to get the litellm cost callback to work
         return response
 
+    # ---------------------------------------------------
+    # Helper: confidence assessment
+    # ---------------------------------------------------
+
+    async def _assess_confidence(self, question: str, answer: str) -> float:  # noqa: D401
+        """Return a confidence score 0–1 using a cheap model."""
+
+        prompt = (
+            "You are an expert answer verifier. Given a QUESTION and its ANSWER, "
+            "output a single floating point number between 0 and 1 representing how confident "
+            "you are that the answer fully and accurately addresses the question.\n\n"
+            f"QUESTION:\n{question}\n\nANSWER:\n{answer}\n\nCONFIDENCE:"  # noqa: E501
+        )
+
+        cheap_model = os.getenv("CRITIC_MODEL", "gpt-3.5-turbo-0125")
+        critic_llm = GeneralLlm(model=cheap_model, temperature=0)
+        try:
+            raw = await critic_llm.invoke(prompt)
+            score = float(raw.strip().split()[0])  # take first token
+            score = max(0.0, min(1.0, score))
+            return score
+        except Exception:
+            return 1.0  # default high confidence if assessment fails
 
 AgentRunner = Runner  # Alias for Runner for later extension
 AgentTool = FunctionTool  # Alias for FunctionTool for later extension
