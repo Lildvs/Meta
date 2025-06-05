@@ -69,52 +69,54 @@ async def orchestrate_research(query: str, depth: Depth = "quick") -> List[Resea
     if not query:
         raise ValueError("Query must be non-empty")
 
-    snippets: list[ResearchSnippet] = []
+    async def _compute() -> List[ResearchSnippet]:
+        snippets: list[ResearchSnippet] = []
 
-    # Always run SmartSearcher (cheap) – we call its .invoke synchronously because
-    # SmartSearcher already performs internal concurrency.
-    smart_task = SmartSearcher(num_searches_to_run=1, num_sites_per_search=5).invoke(query)
+        smart_task = SmartSearcher(num_searches_to_run=1, num_sites_per_search=5).invoke(query)
 
-    # Always run AskNews summaries if keys exist
-    asknews_enabled = os.getenv("ASKNEWS_CLIENT_ID") and os.getenv("ASKNEWS_SECRET")
-    ask_task = (
-        AskNewsSearcher().get_formatted_news_async(query) if asknews_enabled else None
-    )
+        asknews_enabled = os.getenv("ASKNEWS_CLIENT_ID") and os.getenv("ASKNEWS_SECRET")
+        ask_task = (
+            AskNewsSearcher().get_formatted_news_async(query) if asknews_enabled else None
+        )
 
-    # Deep search optional
-    deep_task = None
-    if depth == "deep":
-        # Perplexity pro search returns a string via misc_tools wrapper
-        deep_task = perplexity_pro_search(query)
+        deep_task = None
+        if depth == "deep":
+            deep_task = perplexity_pro_search(query)
 
-    # gather only non-None tasks
-    tasks = [smart_task]
-    if ask_task:
-        tasks.append(ask_task)
-    if deep_task:
-        tasks.append(deep_task)
+        tasks: list[asyncio.Future] = [smart_task]
+        if ask_task:
+            tasks.append(ask_task)
+        if deep_task:
+            tasks.append(deep_task)
 
-    results = await asyncio.gather(*tasks, return_exceptions=True)
+        results = await asyncio.gather(*tasks, return_exceptions=True)
 
-    # Map results back to snippets
-    for i, res in enumerate(results):
-        if isinstance(res, Exception):
-            continue
+        for i, res in enumerate(results):
+            if isinstance(res, Exception):
+                continue
+            if isinstance(res, list):
+                snippets.extend(res)
+            else:
+                src_name = ["smart_search", "asknews", "perplexity"][i]
+                snippets.append({"source": src_name, "text": str(res)})
 
-        if isinstance(res, list):
-            snippets.extend(res)
-        else:
-            src_name = ["smart_search", "asknews", "perplexity"][i]
-            snippets.append({"source": src_name, "text": str(res)})
+        deduped = _dedupe(snippets)
 
-    deduped = _dedupe(snippets)
+        if os.getenv("ENABLE_COD_SUMMARY", "TRUE").upper() == "TRUE" and len(deduped) > 6:
+            texts = [s["text"] for s in deduped]
+            try:
+                summary = await cod_compress(texts)
+                deduped = [{"source": "cod_summary", "text": summary}]
+            except Exception as err:  # noqa: BLE001
+                logger.warning("CoD summariser failed: %s", err)
+        return deduped
 
-    # Optional CoD compression for long outputs
-    if os.getenv("ENABLE_COD_SUMMARY", "TRUE").upper() == "TRUE" and len(deduped) > 6:
-        texts = [s["text"] for s in deduped]
-        try:
-            summary = await cod_compress(texts)
-            deduped = [{"source": "cod_summary", "text": summary}]
-        except Exception as err:  # noqa: BLE001
-            logger.warning("CoD summariser failed: %s", err)
-    return deduped
+    from forecasting_tools.forecast_helpers.cache import EmbeddingCache
+
+    cache_key = f"{depth}:{query.strip().lower()}"
+    cache = EmbeddingCache()
+
+    snippets = await cache.get_or_fetch(cache_key, _compute)
+
+    logger.info("Research cache hit-ratio %.1f%%", EmbeddingCache.hit_ratio() * 100)
+    return snippets
