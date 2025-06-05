@@ -46,7 +46,7 @@ class SmartSearcher(OutputsText, AiModel):
         self.num_quotes_to_evaluate_from_search = 15
         self.number_of_searches_to_run = num_searches_to_run
         self.exa_searcher = ExaSearcher(
-            include_text=False,
+            include_text=True,
             include_highlights=True,
             num_results=num_sites_per_search,
         )
@@ -60,6 +60,8 @@ class SmartSearcher(OutputsText, AiModel):
         self.include_works_cited_list = include_works_cited_list
         self.use_citation_brackets = use_brackets_around_citations
         self.use_advanced_filters = use_advanced_filters
+        # collected image URLs from latest run
+        self._images: list[str] = []
 
     async def invoke(self, prompt: str) -> str:
         logger.debug(f"Running search for prompt: {prompt}")
@@ -196,6 +198,9 @@ class SmartSearcher(OutputsText, AiModel):
         search_results: list[ExaHighlightQuote],
         original_instructions: str,
     ) -> str:
+        # reset image list
+        self._images = []
+
         if len(search_results) == 0:
             return "No search results found for the query using the search filter chosen"
 
@@ -235,6 +240,22 @@ class SmartSearcher(OutputsText, AiModel):
             """
         )
         report = await self.llm.invoke(prompt)
+
+        # -----------------------------------------------
+        # Extract images from source HTML
+        # -----------------------------------------------
+        seen: set[str] = set()
+        for h in search_results:
+            html = h.source.text or ""
+            for img in self._extract_images(html):
+                if img not in seen:
+                    seen.add(img)
+                    self._images.append(img)
+                if len(self._images) >= 5:
+                    break
+            if len(self._images) >= 5:
+                break
+
         return report
 
     @staticmethod
@@ -275,3 +296,38 @@ class SmartSearcher(OutputsText, AiModel):
     @staticmethod
     def _get_mock_return_for_direct_call_to_model_using_cheap_input() -> str:
         return "Mock Report: Pretend this is an extensive report"
+
+    # --------------------------------------------------
+    # image scraping helper
+    # --------------------------------------------------
+
+    @staticmethod
+    def _extract_images(html: str) -> list[str]:  # noqa: D401
+        """Return list of <img src> URLs (width >=200px when attribute present)."""
+        try:
+            from bs4 import BeautifulSoup  # type: ignore
+        except ImportError:
+            return []
+
+        out: list[str] = []
+        soup = BeautifulSoup(html, "html.parser")
+        for img in soup.find_all("img"):
+            src = img.get("src")
+            if not src or src.startswith("data:"):
+                continue
+            try:
+                width_attr = img.get("width")
+                width = int(width_attr) if width_attr and width_attr.isdigit() else None
+            except Exception:
+                width = None
+            if width is not None and width < 200:
+                continue
+            out.append(src)
+            if len(out) >= 5:
+                break
+        return out
+
+    @property
+    def images(self) -> list[str]:  # noqa: D401
+        """Return image URLs extracted during last `invoke`."""
+        return self._images
