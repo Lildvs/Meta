@@ -895,3 +895,38 @@ Also it's helpful to use the log file that is automatically placed at `logs/late
 - Open an issue for bugs or feature requests
 
 Thank you for helping improve forecasting-tools!
+
+# Research Orchestrator Architecture
+
+![Research Orchestrator Flow](./docs/images/research_orchestrator_flow.png)
+
+## Environment Variables (Quick Reference)
+
+| Variable | Required | Default | Purpose |
+|----------|----------|---------|---------|
+| OPENAI_API_KEY | yes | - | Access to OpenAI models |
+| PERPLEXITY_API_KEY | optional | - | Access to Perplexity API (deep search) |
+| ASKNEWS_CLIENT_ID / ASKNEWS_SECRET | optional | - | Access to AskNews news summaries |
+| CRITIC_MODEL | optional | gpt-3.5-turbo-0125 | Cheap model used by cost-aware ToolCritic |
+| CRITIC_COST_THRESHOLD | optional | 0.20 | Score ≥ threshold triggers deep Perplexity search |
+| ENABLE_VISION | optional | TRUE | Toggle vision OCR pipeline |
+| VISION_MODEL | optional | gpt-4o-mini-vision | Model used by ImageOcrSearcher |
+
+## Cost Management Example
+
+The ToolCritic can avoid expensive Perplexity calls. You can cap spending and inspect how much you *avoided* using `MonetaryCostManager`:
+
+```python
+from forecasting_tools.forecast_helpers.research_orchestrator import orchestrate_research
+from forecasting_tools import MonetaryCostManager
+
+question = "Will AMD's Instinct MI400 beat Nvidia's H200 on MLPerf by 2026?"
+
+with MonetaryCostManager(hard_limit=0.10, log_usage_when_called=True) as cm:
+    snippets = await orchestrate_research(question, depth="deep")
+
+print(f"Total spent: ${cm.current_usage:0.2f}")
+print(f"Avoided cost: ${(cm.hard_limit - cm.current_usage):0.2f}")
+```
+
+The last line shows the **avoided_cost** thanks to the critic skipping unnecessary deep searches.
