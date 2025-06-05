@@ -81,7 +81,10 @@ async def orchestrate_research(query: str, depth: Depth = "quick") -> List[Resea
 
         deep_task = None
         if depth == "deep":
-            deep_task = perplexity_pro_search(query)
+            from forecasting_tools.forecast_helpers.tool_critic import ToolCritic
+            critic = ToolCritic()
+            if await critic.should_deep_search(query):
+                deep_task = perplexity_pro_search(query)
 
         tasks: list[asyncio.Future] = [smart_task]
         if ask_task:

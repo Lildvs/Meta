@@ -142,5 +142,6 @@ from forecasting_tools.forecast_helpers.prediction_extractor import (
 from forecasting_tools.forecast_helpers.smart_searcher import (
     SmartSearcher as SmartSearcher,
 )
+from forecasting_tools.forecast_helpers.tool_critic import ToolCritic  # noqa: F401
 
 nest_asyncio.apply()
