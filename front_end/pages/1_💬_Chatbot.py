@@ -251,11 +251,12 @@ def display_premade_examples() -> None:
             st.rerun()
 
 async def generate_response(
-    prompt_input: str | None,
+    raw_prompt: str | None,
+    processed_prompt: str,
     active_tools: list[Tool],
 ) -> None:
 
-    if not prompt_input:
+    if not raw_prompt:
         return
 
     _update_last_message_if_gemini_bug(st.session_state["model_choice"])
@@ -284,21 +285,19 @@ async def generate_response(
                 getattr(trace_ctx, "id", None) or getattr(trace_ctx, "trace_id", None)
             )
 
-            # Run the agent in one shot (non-streaming). The newer Agents SDK
-            # exposes a class-method rather than requiring instantiation of
-            # Runner. It returns a RunResult that contains any intermediate
-            # RunItems (tool calls etc.) plus the final LLM output.
-            run_result = await Runner.run(agent, st.session_state.messages)
+            # Build a copy of the message history with the processed prompt
+            # replacing the raw user text *only for the model call* so that the
+            # user-facing chat history remains unchanged.
+            input_messages = st.session_state.messages.copy()
+            input_messages[-1] = dict(input_messages[-1])
+            input_messages[-1]["content"] = processed_prompt
 
-            # Update conversation history from the RunResult so that any
-            # intermediate tool calls and assistant/tool outputs are captured.
-            try:
-                st.session_state.messages = run_result.to_input_list()
-            except Exception:
-                # Fallback if SDK version lacks to_input_list()
-                st.session_state.messages.append(
-                    {"role": "assistant", "content": str(run_result.final_output)}
-                )
+            run_result = await Runner.run(agent, input_messages)
+
+            # Append assistant final answer to visible history
+            st.session_state.messages.append(
+                {"role": "assistant", "content": str(run_result.final_output)}
+            )
 
             final_answer_message: str = str(run_result.final_output)
 
@@ -381,7 +380,7 @@ async def main():
     if st.session_state.messages[-1]["role"] != "assistant":
         with MonetaryCostManager(10) as cost_manager:
             start_time = time.time()
-            await generate_response(prompt_for_response, active_tools)
+            await generate_response(raw_prompt, processed_prompt, active_tools)
             st.session_state.last_chat_cost = cost_manager.current_usage
             end_time = time.time()
             st.session_state.last_chat_duration = end_time - start_time
