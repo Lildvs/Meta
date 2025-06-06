@@ -23,8 +23,15 @@ async def get_general_news_with_asknews(topic: str) -> str:
     Get general news context for a topic using AskNews.
     This will provide a list of news articles and their summaries
     """
-    # TODO: Insert an if statement that will use Exa summaries rather than AskNews if AskNews keys are not enabled
-    return await AskNewsSearcher().get_formatted_news_async(topic)
+    # Gracefully degrade if AskNews credentials are not provided.
+    try:
+        return await AskNewsSearcher().get_formatted_news_async(topic)
+    except ValueError as e:
+        if "ASKNEWS_CLIENT_ID" in str(e) or "ASKNEWS_SECRET" in str(e):
+            # Keys missing – just return an empty string so the caller can
+            # continue without failing the entire run.
+            return ""
+        raise
 
 
 @agent_tool

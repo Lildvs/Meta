@@ -271,7 +271,10 @@ async def generate_response(
     message_placeholder = st.empty()
 
     with st.chat_message("assistant"):
-        with trace("chatbot-test") as trace_ctx:
+        # Disable trace exporting in hosted environments to avoid JSON serialization
+        # issues with complex objects (e.g. AgentSdkLlm). We still keep the local span
+        # so we get an ID for display, but nothing is exported.
+        with trace("chatbot-test", disabled=True) as trace_ctx:
             # OpenAI Agents SDK renamed the attribute from `id` → `trace_id` in
             # recent releases.  Grab whichever exists so we can still display
             # a link in the sidebar, but don't crash if neither is present.
