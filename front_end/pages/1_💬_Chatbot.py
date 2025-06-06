@@ -368,7 +368,7 @@ async def main():
                 + question_txt
             )
 
-        st.session_state.messages.append({"role": "user", "content": processed_prompt})
+        st.session_state.messages.append({"role": "user", "content": raw_prompt})
 
         # Show the original text in the UI so the user sees exactly what they
         # typed, not the internal reformulation.
