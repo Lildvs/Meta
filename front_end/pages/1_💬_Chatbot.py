@@ -285,19 +285,20 @@ async def generate_response(
             # RunItems (tool calls etc.) plus the final LLM output.
             run_result = await Runner.run(agent, st.session_state.messages)
 
-            # Append any generated items (tool calls + outputs) so they render
-            # in the sidebar via `display_messages`.
-            for run_item in run_result.new_items:
-                st.session_state.messages.append(run_item.data)
+            # Update conversation history from the RunResult so that any
+            # intermediate tool calls and assistant/tool outputs are captured.
+            try:
+                st.session_state.messages = run_result.to_input_list()
+            except Exception:
+                # Fallback if SDK version lacks to_input_list()
+                st.session_state.messages.append(
+                    {"role": "assistant", "content": str(run_result.final_output)}
+                )
 
             final_answer_message: str = str(run_result.final_output)
 
-            # Write assistant response
+            # Display assistant response in the UI
             message_placeholder.markdown(final_answer_message)
-
-            st.session_state.messages.append(
-                {"role": "assistant", "content": final_answer_message}
-            )
 
 
 def _update_last_message_if_gemini_bug(model_choice: str) -> None:
