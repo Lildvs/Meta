@@ -1,17 +1,18 @@
 import nest_asyncio
 
-from forecasting_tools.agents_and_tools.base_rates.base_rate_researcher import (
-    BaseRateResearcher as BaseRateResearcher,
-)
-from forecasting_tools.agents_and_tools.base_rates.estimator import (
-    Estimator as Estimator,
-)
-from forecasting_tools.agents_and_tools.base_rates.niche_list_researcher import (
-    FactCheckedItem as FactCheckedItem,
-)
-from forecasting_tools.agents_and_tools.base_rates.niche_list_researcher import (
-    NicheListResearcher as NicheListResearcher,
-)
+# Disabled Base Rate tools due to circular import issues. Uncomment when fixed.
+# from forecasting_tools.agents_and_tools.base_rates.base_rate_researcher import (
+#     BaseRateResearcher as BaseRateResearcher,
+# )
+# from forecasting_tools.agents_and_tools.base_rates.estimator import (
+#     Estimator as Estimator,
+# )
+# from forecasting_tools.agents_and_tools.base_rates.niche_list_researcher import (
+#     FactCheckedItem as FactCheckedItem,
+# )
+# from forecasting_tools.agents_and_tools.base_rates.niche_list_researcher import (
+#     NicheListResearcher as NicheListResearcher,
+# )
 from forecasting_tools.agents_and_tools.key_factors_researcher import (
     KeyFactorsResearcher as KeyFactorsResearcher,
 )
