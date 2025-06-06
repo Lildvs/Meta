@@ -357,17 +357,31 @@ async def main():
     st.sidebar.write("---")
     display_messages(st.session_state.messages)
 
-    if prompt := st.chat_input():
-        st.session_state.messages.append(
-            {"role": "user", "content": prompt}
-        )
+    if raw_prompt := st.chat_input():
+        # If the user begins their request with the trigger word "JARVIS",
+        # convert it into an explicit instruction so the LLM will invoke the
+        # advanced forecasting tool.
+        processed_prompt = raw_prompt
+        if raw_prompt.strip().lower().startswith("jarvis"):
+            question_txt = raw_prompt.strip()[len("jarvis") :].strip()
+            processed_prompt = (
+                "Use forecast_question_tool on the following question: "
+                + question_txt
+            )
+
+        st.session_state.messages.append({"role": "user", "content": processed_prompt})
+
+        # Show the original text in the UI so the user sees exactly what they
+        # typed, not the internal reformulation.
         with st.chat_message("user"):
-            st.write(prompt)
+            st.write(raw_prompt)
+
+        prompt_for_response = processed_prompt
 
     if st.session_state.messages[-1]["role"] != "assistant":
         with MonetaryCostManager(10) as cost_manager:
             start_time = time.time()
-            await generate_response(prompt, active_tools)
+            await generate_response(prompt_for_response, active_tools)
             st.session_state.last_chat_cost = cost_manager.current_usage
             end_time = time.time()
             st.session_state.last_chat_duration = end_time - start_time
