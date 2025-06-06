@@ -217,3 +217,35 @@ async def run_research(query: str, depth: str = "quick") -> str:  # noqa: D401
         lines.append(f"* **{src}** – {txt}")
 
     return "\n".join(lines)
+
+
+# ---------------------------------------------------
+# Simple probability forecast tool (text only)
+# ---------------------------------------------------
+
+
+@agent_tool
+async def quick_probability_forecast(question: str) -> str:  # noqa: D401
+    """Return a quick rough probability forecast.
+
+    The model responds with a markdown bullet list where the **first bullet** is
+    the numeric probability (0-100 %) and the rest is a concise rationale.  This
+    tool is intentionally lightweight so the agent can easily call it when the
+    user asks for "likelihood" without needing the full SimpleQuestion schema.
+    """
+
+    prompt = clean_indents(
+        f"""
+        You are an experienced forecaster.  Provide a single-number estimate of
+        the probability (0-100 %) that the following proposition will resolve
+        *True* before 2035, followed by 2-3 short bullet points explaining the
+        key considerations. Return your answer as markdown:
+
+        * **Probability:** xx% – one sentence summarising the claim
+        * bullet 1
+        * bullet 2
+        """
+    )
+
+    model = GeneralLlm(model="gpt-4o-mini", temperature=0)
+    return await model.invoke(prompt + "\n\nProposition: " + question)

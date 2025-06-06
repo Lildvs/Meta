@@ -17,6 +17,7 @@ from forecasting_tools.agents_and_tools.misc_tools import (
     perplexity_pro_search,
     perplexity_quick_search,
     smart_searcher_search,
+    quick_probability_forecast,
 )
 from forecasting_tools.agents_and_tools.question_generators.info_hazard_identifier import (
     InfoHazardIdentifier,
@@ -148,6 +149,7 @@ def get_chat_tools() -> list[Tool]:
         TopicGenerator.get_headlines_on_random_company_tool,
         perplexity_quick_search,
         InfoHazardIdentifier.info_hazard_identifier_tool,
+        quick_probability_forecast,
     ]
 
 
