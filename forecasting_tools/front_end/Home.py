@@ -58,16 +58,29 @@ class HomePage(AppPage):
 
 
 def run_forecasting_streamlit_app() -> None:
-    all_pages = [HomePage] + HomePage.NON_HOME_PAGES
-    if os.getenv("LOCAL_STREAMLIT_MODE", "false").lower() == "true":
-        all_pages.append(HomePage.BENCHMARK_PAGE)
-    navigation = st.navigation(
-        [page.convert_to_streamlit_page() for page in all_pages]
-    )
     st.set_page_config(
-        page_title="Forecasting-Tools", page_icon=":material/explore:"
+        page_title="Forecasting-Tools",
+        page_icon=":material/explore:",
+        layout="wide",
     )
-    navigation.run()
+    st.title("🏠 Home")
+    st.write("Select a tool from the sidebar to get started.")
+
+    st.markdown("---")
+    st.write(
+        "This is the demo site for the "
+        "[forecasting-tools python package](https://github.com/CodexVeritas/forecasting-tools)."
+    )
+    st.write(
+        "Give feedback on the [Forecasting Tools Discord](https://discord.gg/Dtq4JNdXnw) or email "
+        "me at ben [at] metaculus [dot com]. "
+        "Let me know what I can do to make this a tool you will want to use "
+        "every day! Let me know if you want to chat and we can find a time!"
+    )
+    st.write(
+        "Queries made to the website are saved to a database and may be "
+        "reviewed to help improve the tool"
+    )
 
 
 if __name__ == "__main__":

@@ -3,7 +3,7 @@ import logging
 from forecasting_tools.benchmarking.benchmark_displayer import (
     run_benchmark_streamlit_page,
 )
-from forecasting_tools.front_end.helpers.app_page import AppPage
+import streamlit as st
 
 logger = logging.getLogger(__name__)
 
@@ -32,17 +32,5 @@ class ChatMessage:
             reasoning=data.get("reasoning", ""),
         )
 
-
-class BenchmarkPage(AppPage):
-    PAGE_DISPLAY_NAME: str = "🏆 Benchmarks"
-    URL_PATH: str = "/benchmark"
-    ENABLE_HEADER: bool = False
-    ENABLE_FOOTER: bool = False
-
-    @classmethod
-    async def _async_main(cls) -> None:
-        run_benchmark_streamlit_page("logs/forecasts/benchmarks/")
-
-
-if __name__ == "__main__":
-    BenchmarkPage.main()
+st.title("🏆 Benchmarks")
+run_benchmark_streamlit_page("logs/forecasts/benchmarks/")
