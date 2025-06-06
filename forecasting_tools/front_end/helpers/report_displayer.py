@@ -177,3 +177,13 @@ class ReportDisplayer:
     @staticmethod
     def markdown_is_clean(text: str) -> bool:
         return text == clean_markdown(text)
+
+    @staticmethod
+    def clean_markdown(text: str) -> str:
+        """Return a sanitized markdown string.
+
+        This now simply proxies to ``forecasting_tools.util.markdown_helpers.clean_markdown``,
+        but is kept to avoid breaking pages that referenced the old static
+        method directly (e.g. ``front_end/pages/1_💬_Chatbot.py``).
+        """
+        return clean_markdown(text)

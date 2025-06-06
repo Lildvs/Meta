@@ -1,5 +1,33 @@
 import nest_asyncio
 
+# Early lightweight imports of core data models to avoid circular import deadlocks
+from forecasting_tools.data_models.binary_report import (
+    BinaryReport as BinaryReport,
+)
+from forecasting_tools.data_models.multiple_choice_report import (
+    MultipleChoiceReport as MultipleChoiceReport,
+    PredictedOption as PredictedOption,
+    PredictedOptionList as PredictedOptionList,
+)
+from forecasting_tools.data_models.numeric_report import (
+    NumericDistribution as NumericDistribution,
+    NumericReport as NumericReport,
+)
+from forecasting_tools.data_models.questions import (
+    BinaryQuestion as BinaryQuestion,
+    MetaculusQuestion as MetaculusQuestion,
+    MultipleChoiceQuestion as MultipleChoiceQuestion,
+    NumericQuestion as NumericQuestion,
+    QuestionState as QuestionState,
+)
+from forecasting_tools.data_models.forecast_report import (
+    ForecastReport as ForecastReport,
+    ReasonedPrediction as ReasonedPrediction,
+)
+from forecasting_tools.data_models.data_organizer import (
+    DataOrganizer as DataOrganizer,
+)
+
 # Disabled Base Rate tools due to circular import issues. Uncomment when fixed.
 # from forecasting_tools.agents_and_tools.base_rates.base_rate_researcher import (
 #     BaseRateResearcher as BaseRateResearcher,
@@ -62,48 +90,6 @@ from forecasting_tools.benchmarking.benchmarker import (
 )
 from forecasting_tools.benchmarking.prompt_optimizer import (
     PromptOptimizer as PromptOptimizer,
-)
-from forecasting_tools.data_models.binary_report import (
-    BinaryReport as BinaryReport,
-)
-from forecasting_tools.data_models.data_organizer import (
-    DataOrganizer as DataOrganizer,
-)
-from forecasting_tools.data_models.forecast_report import (
-    ForecastReport as ForecastReport,
-)
-from forecasting_tools.data_models.forecast_report import (
-    ReasonedPrediction as ReasonedPrediction,
-)
-from forecasting_tools.data_models.multiple_choice_report import (
-    MultipleChoiceReport as MultipleChoiceReport,
-)
-from forecasting_tools.data_models.multiple_choice_report import (
-    PredictedOption as PredictedOption,
-)
-from forecasting_tools.data_models.multiple_choice_report import (
-    PredictedOptionList as PredictedOptionList,
-)
-from forecasting_tools.data_models.numeric_report import (
-    NumericDistribution as NumericDistribution,
-)
-from forecasting_tools.data_models.numeric_report import (
-    NumericReport as NumericReport,
-)
-from forecasting_tools.data_models.questions import (
-    BinaryQuestion as BinaryQuestion,
-)
-from forecasting_tools.data_models.questions import (
-    MetaculusQuestion as MetaculusQuestion,
-)
-from forecasting_tools.data_models.questions import (
-    MultipleChoiceQuestion as MultipleChoiceQuestion,
-)
-from forecasting_tools.data_models.questions import (
-    NumericQuestion as NumericQuestion,
-)
-from forecasting_tools.data_models.questions import (
-    QuestionState as QuestionState,
 )
 from forecasting_tools.forecast_bots.forecast_bot import (
     ForecastBot as ForecastBot,
