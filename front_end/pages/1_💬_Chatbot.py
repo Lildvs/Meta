@@ -267,32 +267,29 @@ async def generate_response(
         ),
         tools=active_tools,
     )
-    runner = Runner(agent)
 
     message_placeholder = st.empty()
-    full_response = ""
 
     with st.chat_message("assistant"):
         with trace("chatbot-test") as trace_url:
             st.session_state.trace_id = trace_url.id
-            final_answer_message = ""
-            async for item in runner.run(st.session_state.messages):
-                message_type = item.type
-                logger.info(f"Message type: {message_type}")
-                st.session_state.messages.append(item.data)
-                text = _grab_text_of_item(item)
-                if text is not None:
-                    final_answer_message = text
-                    if isinstance(item.data["content"], list):
-                        content_data = item.data["content"][0]
-                        if isinstance(content_data, ResponseTextDeltaEvent):
-                            full_response += content_data.delta
-                        else:
-                            full_response += text
-                    else:
-                        full_response += text
-                    message_placeholder.markdown(full_response + "▌")
-            message_placeholder.markdown(full_response)
+
+            # Run the agent in one shot (non-streaming). The newer Agents SDK
+            # exposes a class-method rather than requiring instantiation of
+            # Runner. It returns a RunResult that contains any intermediate
+            # RunItems (tool calls etc.) plus the final LLM output.
+            run_result = await Runner.run(agent, st.session_state.messages)
+
+            # Append any generated items (tool calls + outputs) so they render
+            # in the sidebar via `display_messages`.
+            for run_item in run_result.new_items:
+                st.session_state.messages.append(run_item.data)
+
+            final_answer_message: str = str(run_result.final_output)
+
+            # Write assistant response
+            message_placeholder.markdown(final_answer_message)
+
             st.session_state.messages.append(
                 {"role": "assistant", "content": final_answer_message}
             )
