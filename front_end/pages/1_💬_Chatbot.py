@@ -271,8 +271,13 @@ async def generate_response(
     message_placeholder = st.empty()
 
     with st.chat_message("assistant"):
-        with trace("chatbot-test") as trace_url:
-            st.session_state.trace_id = trace_url.id
+        with trace("chatbot-test") as trace_ctx:
+            # OpenAI Agents SDK renamed the attribute from `id` → `trace_id` in
+            # recent releases.  Grab whichever exists so we can still display
+            # a link in the sidebar, but don't crash if neither is present.
+            st.session_state.trace_id = (
+                getattr(trace_ctx, "id", None) or getattr(trace_ctx, "trace_id", None)
+            )
 
             # Run the agent in one shot (non-streaming). The newer Agents SDK
             # exposes a class-method rather than requiring instantiation of
