@@ -9,6 +9,7 @@ from streamlit.delta_generator import DeltaGenerator
 from forecasting_tools.data_models.binary_report import BinaryReport
 from forecasting_tools.data_models.questions import BinaryQuestion
 from forecasting_tools.data_models.report_section import ReportSection
+from forecasting_tools.util.markdown_helpers import clean_markdown
 
 logger = logging.getLogger(__name__)
 
@@ -111,11 +112,11 @@ class ReportDisplayer:
         cls, tab: DeltaGenerator, section: ReportSection
     ) -> None:
         with tab:
-            st.markdown(cls.clean_markdown(section.section_content))
+            st.markdown(clean_markdown(section.section_content))
             for sub_section in section.sub_sections:
                 with st.expander(sub_section.title or "Untitled"):
                     st.markdown(
-                        cls.clean_markdown(sub_section.section_content)
+                        clean_markdown(sub_section.section_content)
                     )
                     cls.__display_nested_sections(sub_section.sub_sections)
 
@@ -125,16 +126,16 @@ class ReportDisplayer:
     ) -> None:
         with tab:
             st.write(
-                f"**Question Text:** {cls.clean_markdown(question.question_text)}"
+                f"**Question Text:** {clean_markdown(question.question_text)}"
             )
             st.write(
-                f"**Resolution Criteria:** {cls.clean_markdown(question.resolution_criteria or 'None')}"
+                f"**Resolution Criteria:** {clean_markdown(question.resolution_criteria or 'None')}"
             )
             st.write(
-                f"**Fine Print:** {cls.clean_markdown(question.fine_print or 'None')}"
+                f"**Fine Print:** {clean_markdown(question.fine_print or 'None')}"
             )
             st.write(
-                f"**Background Info:** {cls.clean_markdown(question.background_info or 'None')}"
+                f"**Background Info:** {clean_markdown(question.background_info or 'None')}"
             )
             st.write(f"**Question Type:** {type(question)}")
             st.write(f"**Page URL:** {question.page_url}")
@@ -168,24 +169,11 @@ class ReportDisplayer:
         cls, sections: list[ReportSection], level: int = 3
     ) -> None:
         for section in sections:
-            st.markdown(cls.clean_markdown(section.section_content))
+            st.markdown(clean_markdown(section.section_content))
             ReportDisplayer.__display_nested_sections(
                 section.sub_sections, level + 1
             )
 
     @staticmethod
-    def clean_markdown(text: str) -> str:
-        def replace_dollar(match: re.Match) -> str:
-            if match.group(1):  # Already escaped
-                return match.group(0)
-            else:  # Not escaped
-                return r"\$"
-
-        # Regex to match escaped $ or just $
-        pattern = r"(\\)?\$"
-        cleaned_text = re.sub(pattern, replace_dollar, text)
-        return cleaned_text
-
-    @staticmethod
     def markdown_is_clean(text: str) -> bool:
-        return text == ReportDisplayer.clean_markdown(text)
+        return text == clean_markdown(text)

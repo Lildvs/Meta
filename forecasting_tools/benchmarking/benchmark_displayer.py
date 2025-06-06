@@ -15,6 +15,7 @@ from forecasting_tools.front_end.helpers.report_displayer import (
     ReportDisplayer,
 )
 from forecasting_tools.util import file_manipulation
+from forecasting_tools.util.markdown_helpers import clean_markdown
 from forecasting_tools.util.stats import ConfidenceIntervalCalculator
 
 logger = logging.getLogger(__name__)
@@ -137,7 +138,7 @@ def display_question_stats_in_list(
             question_text = report.question.question_text
         st.write(
             f"- **🎯:** {score:.4f} | **🤖:** {report.prediction:.2%} | "
-            f"**👥:** {report.community_prediction:.2%} | **Question:** {question_text}"
+            f"**👥:** {report.community_prediction:.2%} | **Question:** {clean_markdown(question_text)}"
         )
 
 
@@ -216,7 +217,12 @@ def display_benchmark_list(benchmarks: list[BenchmarkForBot]) -> None:
         reports = typeguard.check_type(reports, list[BinaryReport])
         display_score_overview(reports)
         display_questions_and_forecasts(reports)
-        ReportDisplayer.display_report_list(reports)
+        with st.expander("Individual Question Reports", expanded=False):
+            ReportDisplayer.display_report_list(reports)
+
+    if benchmark.logs:
+        with st.expander("Logs", expanded=False):
+            st.code(benchmark.logs, language="log")
 
 
 def add_star_annotations(
@@ -562,80 +568,48 @@ load_benchmarks_from_files = st.cache_data(load_benchmarks_from_files)
 def run_benchmark_streamlit_page(
     input: list[BenchmarkForBot] | str | None = None,
 ) -> None:
-    """
-    Run this function as a streamlit app. `streamlit run file_running_this_function.py`
-
-    This function runs the benchmark streamlit page.
-    If input_benchmarks is provided, it will display the benchmarks passed in.
-    If input is a string, it will be treated as a folder path that contains benchmark JSON files.
-    Otherwise, it will display the benchmarks in the project directory.
-
-    Files containing "bench" in the name and ending in '.json' will be collected as benchmark files
-    from the project directory tree.
-    """
-    # TODO: Refactor this file. It doesn't match the cleanliness standards of the rest of the code base.
-
-    st.title("Benchmark Viewer")
-
-    if isinstance(input, list):
-        display_main_page(input)
-        return
-    elif isinstance(input, str):
-        project_directory = input
-    else:
-        project_directory = file_manipulation.get_absolute_path("")
-
-    st.write("Select JSON files containing BenchmarkForBot objects.")
-
-    json_files = get_json_files(project_directory)
-
-    if not json_files:
-        st.warning(f"No JSON files found in {project_directory}")
-        return
-
-    selected_files = st.multiselect(
-        "Select benchmark files:",
-        json_files,
-        format_func=lambda x: os.path.basename(x),
+    """Either displays benchmarks or allows user to select a directory."""
+    st.title("Forecasting Bot Benchmarks")
+    st.write(
+        "This page allows you to view and compare the performance of different forecasting bots."
     )
 
-    if selected_files:
-        try:
-            all_successful_benchmarks, all_benchmarks = (
-                load_benchmarks_from_files(selected_files)
+    benchmarks: list[BenchmarkForBot] | None = None
+    if isinstance(input, list) and input:
+        benchmarks = input
+    elif isinstance(input, str) and os.path.isdir(input):
+        benchmarks, _ = load_benchmarks_from_files(get_json_files(input))
+    else:
+        directory = st.text_input(
+            "Enter directory path with benchmarks",
+            "logs/benchmarks",
+        )
+        if os.path.isdir(directory):
+            benchmarks, _ = load_benchmarks_from_files(
+                get_json_files(directory)
             )
 
-            logger.info(f"Loaded {len(all_successful_benchmarks)} benchmarks")
+    if benchmarks:
+        display_main_page(benchmarks)
 
-            perfect_benchmark = make_perfect_benchmark(
-                all_successful_benchmarks[0]
-            )
-            all_successful_benchmarks.insert(0, perfect_benchmark)
+        # Show full report
+        for report in benchmarks[0].forecast_reports:
+            with st.expander(
+                f"Full Report for '{report.question.question_text[:50]}...'",
+                expanded=False,
+            ):
+                st.write(clean_markdown(report.explanation))
 
-            benchmark_options = []
-            for i, b in enumerate(all_successful_benchmarks):
-                benchmark_options.append(
-                    f"{i}: {b.name} (Score: {b.average_expected_baseline_score:.4f})"
-                )
+        # Show code for all benchmarks
+        for benchmark in benchmarks:
+            if benchmark.code:
+                with st.expander(
+                    f"Code for {benchmark.name}", expanded=False
+                ):
+                    st.code(benchmark.code, language="python")
 
-            selected_benchmarks = st.multiselect(
-                "Select benchmarks to display:",
-                range(len(all_successful_benchmarks)),
-                default=range(len(all_successful_benchmarks)),
-                format_func=lambda i: benchmark_options[i],
-            )
-
-            display_errors_of_benchmarks(all_benchmarks)
-
-            if selected_benchmarks:
-                filtered_benchmarks = [
-                    all_successful_benchmarks[i] for i in selected_benchmarks
-                ]
-                display_main_page(filtered_benchmarks)
-        except Exception as e:
-            st.error(
-                f"Error when loading/displaying benchmarks: {e.__class__.__name__}: {str(e)}"
-            )
+    else:
+        st.warning("No benchmarks found.")
 
 
 if __name__ == "__main__":

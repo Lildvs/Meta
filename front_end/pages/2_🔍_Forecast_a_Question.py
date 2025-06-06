@@ -27,7 +27,7 @@ class ForecastInput(Jsonable, BaseModel):
 
 
 async def _get_input() -> ForecastInput | None:
-    __display_metaculus_url_input()
+    # __display_metaculus_url_input()  # Disabled: hide Metaculus URL input
     with st.form("forecast_form"):
         question_text = st.text_input(
             "Yes/No Binary Question", key="question_text_box"
@@ -151,7 +151,7 @@ async def main():
         save_run_to_coda_func=_save_run_to_coda,
         input_type=ForecastInput,
         output_type=BinaryReport,
-        examples_file_path="forecasting_tools/front_end/example_outputs/forecast_page_examples.json"
+        examples_file_path="forecasting_tools/front_end/example_outputs/forecast_page_examples.json",
     )
     await page._async_main()
 
