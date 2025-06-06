@@ -34,8 +34,17 @@ class AskNewsSearcher:
         self.client_id = client_id or os.getenv("ASKNEWS_CLIENT_ID")
         self.client_secret = client_secret or os.getenv("ASKNEWS_SECRET")
 
+        self.disabled: bool = False
         if not self.client_id or not self.client_secret:
-            raise ValueError("ASKNEWS_CLIENT_ID or ASKNEWS_SECRET is not set")
+            # No credentials – operate in disabled mode where all public
+            # methods return empty results rather than raising.  Upstream
+            # forecast bots will then continue with remaining sources.
+            self.disabled = True
+            import logging
+
+            logging.getLogger(__name__).info(
+                "AskNews credentials missing; AskNewsSearcher runs in disabled mode."
+            )
 
     def get_formatted_news(self, query: str) -> str:
         return asyncio.run(self.get_formatted_news_async(query))
@@ -45,6 +54,9 @@ class AskNewsSearcher:
         Use the AskNews `news` endpoint to get news context for your query.
         The full API reference can be found here: https://docs.asknews.app/en/reference#get-/v1/news/search
         """
+        if self.disabled:
+            return ""
+
         async with AsyncAskNewsSDK(
             client_id=self.client_id,
             client_secret=self.client_secret,
@@ -105,6 +117,9 @@ class AskNewsSearcher:
         search_depth: int = _default_search_depth,
         max_depth: int = _default_max_depth,
     ) -> str:
+        if self.disabled:
+            return ""
+
         response = await self.run_deep_research(
             query, sources, model, search_depth, max_depth
         )
@@ -132,6 +147,9 @@ class AskNewsSearcher:
         search_depth: int = _default_search_depth,
         max_depth: int = _default_max_depth,
     ) -> CreateDeepNewsResponse:
+        if self.disabled:
+            return ""
+
         try:
             from asknews_sdk.dto.deepnews import CreateDeepNewsResponse
         except ImportError:
@@ -168,6 +186,9 @@ class AskNewsSearcher:
         If AskNews is unavailable (e.g. Free plan 403) this silently returns an empty list so that
         upstream orchestrators can continue without failure.
         """
+        if self.disabled:
+            return []
+
         try:
             async with AsyncAskNewsSDK(
                 client_id=self.client_id,
