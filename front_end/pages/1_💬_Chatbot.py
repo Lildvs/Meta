@@ -43,6 +43,7 @@ from forecasting_tools.front_end.helpers.report_displayer import (
     ReportDisplayer,
 )
 from forecasting_tools.util.jsonable import Jsonable
+from forecasting_tools.ai_models.general_llm import GeneralLlm
 
 logger = logging.getLogger(__name__)
 
@@ -271,6 +272,38 @@ def display_premade_examples() -> None:
             )
             st.rerun()
 
+# --------------------------------------------------------------
+# Forecast relevance guard-rail helpers
+# --------------------------------------------------------------
+
+
+class _ForecastCheck(BaseModel):
+    is_forecast: bool
+    suggested_forecast_question: str | None = None
+
+
+async def _classify_forecast_query(query: str) -> _ForecastCheck:
+    """Determine if *query* is a forecasting request.
+
+    The LLM must respond with JSON: {"is_forecast": bool, "suggested_forecast_question": str}
+    """
+
+    prompt = clean_indents(
+        f"""
+        You are a classifier that decides whether a user query is a *forecasting* question – i.e. it asks for
+        likelihood, probability, prediction, future numeric estimate, etc.
+
+        1. If the query *is* a forecasting question, return JSON: {{"is_forecast": true, "suggested_forecast_question": ""}}
+        2. If it is *not* a forecasting question, return JSON with is_forecast=false and suggest one concrete forecast question that captures the user's intent, starting with "Will" or "What is the probability that …".
+
+        QUERY: "{query}"
+        """
+    )
+
+    llm = GeneralLlm(model="gpt-4o-mini", temperature=0)
+    result: _ForecastCheck = await llm.invoke_and_return_verified_type(prompt, _ForecastCheck)
+    return result
+
 async def generate_response(
     raw_prompt: str | None,
     processed_prompt: str,
@@ -278,6 +311,19 @@ async def generate_response(
 ) -> None:
 
     if not raw_prompt:
+        return
+
+    # Guard-rail: ensure query is a forecasting request **before** we do any work
+    check = await _classify_forecast_query(raw_prompt)
+    if not check.is_forecast:
+        suggestion = check.suggested_forecast_question or "(no suggestion)"
+        assistant_msg = (
+            "I can help best when the request is phrased as a forecast. "
+            "Here is an example question based on your query:\n\n" f"*{suggestion}*"
+        )
+        st.session_state.messages.append({"role": "assistant", "content": assistant_msg})
+        with st.chat_message("assistant"):
+            st.write(assistant_msg)
         return
 
     _update_last_message_if_gemini_bug(st.session_state["model_choice"])
