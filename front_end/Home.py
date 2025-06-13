@@ -40,13 +40,12 @@ def _fallback_run_home() -> None:  # noqa: D401 – simple page helper
     st.markdown("---")
     st.write(
         "This is the demo site for the "
-        "[forecasting-tools python package](https://github.com/CodexVeritas/forecasting-tools)."
+        "[forecasting-tools python package](https://github.com/Lildvs/Meta-Working)."
     )
     st.write(
-        "Give feedback on the [Forecasting Tools Discord](https://discord.gg/Dtq4JNdXnw) or email "
-        "me at ben [at] metaculus [dot com]. "
-        "Let me know what I can do to make this a tool you will want to use "
-        "every day! Let me know if you want to chat and we can find a time!"
+        "Give feedback on the [Forecasting Tools Discord](https://discord.gg/Dtq4JNdXnw) "
+        "Thank you to the Metaculus team for the resources and the opportunity to join the Q3 tournament! "
+        "Looking forward to getting the smoke!"
     )
     st.write(
         "Queries made to the website are saved to a database and may be "
