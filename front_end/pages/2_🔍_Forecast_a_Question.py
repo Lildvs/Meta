@@ -71,7 +71,16 @@ async def _get_input() -> ForecastInput | None:
 
 class DeepResearchBot(MainBot):
     async def run_research(self, question):  # noqa: D401
-        snippets = await orchestrate_research(question.question_text, depth="deep")
+        # Call Perplexity deep search directly to avoid FunctionTool indirection
+        from forecasting_tools.agents_and_tools.misc_tools import (
+            perplexity_pro_search as _pps,
+        )
+
+        # If imported symbol is a FunctionTool wrapper, its underlying coroutine
+        # is at the .func attribute. Otherwise it is already a coroutine function.
+        search_coro = _pps.func if hasattr(_pps, "func") else _pps  # type: ignore[attr-defined]
+
+        snippets = await search_coro(question.question_text)
         research_text = "\n".join(f"* {s['text']}" for s in snippets)
         return research_text or "No research found."
 
