@@ -56,6 +56,26 @@ DEFAULT_MESSAGE: dict = {
     "content": "How may I assist you today?",
 }
 
+# --------------------------------------------------------------
+# Display helpers
+# --------------------------------------------------------------
+
+
+def _clean_assistant_markdown(markdown: str) -> str:  # noqa: D401
+    """Hide internal sections and improve formatting for user display."""
+
+    # Remove the likelihood section entirely
+    lower = markdown.lower()
+    tag = "### likelihood i am correct"
+    if tag in lower:
+        idx = lower.index(tag)
+        markdown = markdown[:idx].rstrip()
+
+    # Ensure each bullet starts on its own line for better readability
+    markdown = markdown.replace("• ", "\n• ")
+
+    return markdown
+
 # ------------------------------
 # Structured answer template constant
 # ------------------------------
@@ -488,23 +508,3 @@ async def main():
 if __name__ == "__main__":
     import asyncio
     asyncio.run(main())
-
-# --------------------------------------------------------------
-# Display helpers
-# --------------------------------------------------------------
-
-
-def _clean_assistant_markdown(markdown: str) -> str:  # noqa: D401
-    """Hide internal sections and improve formatting for user display."""
-
-    # 1. Remove the likelihood section entirely
-    lower = markdown.lower()
-    tag = "### likelihood i am correct"
-    if tag in lower:
-        idx = lower.index(tag)
-        markdown = markdown[:idx].rstrip()
-
-    # 2. Ensure bullet points each start on their own line
-    markdown = markdown.replace("• ", "\n• ")
-
-    return markdown
