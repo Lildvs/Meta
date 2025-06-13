@@ -75,12 +75,14 @@ class DeepResearchBot(MainBot):
         from forecasting_tools.agents_and_tools.misc_tools import (
             perplexity_pro_search as _pps,
         )
+        from agents import FunctionTool  # type: ignore
 
-        # If imported symbol is a FunctionTool wrapper, its underlying coroutine
-        # is at the .func attribute. Otherwise it is already a coroutine function.
-        search_coro = _pps.func if hasattr(_pps, "func") else _pps  # type: ignore[attr-defined]
+        search_obj = _pps
+        # Unwrap nested FunctionTool layers if present
+        while isinstance(search_obj, FunctionTool):  # type: ignore[arg-type]
+            search_obj = search_obj.func  # type: ignore[attr-defined]
 
-        snippets = await search_coro(question.question_text)
+        snippets = await search_obj(question.question_text)  # type: ignore[arg-type]
         research_text = "\n".join(f"* {s['text']}" for s in snippets)
         return research_text or "No research found."
 
