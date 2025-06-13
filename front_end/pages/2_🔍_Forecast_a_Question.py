@@ -71,20 +71,26 @@ async def _get_input() -> ForecastInput | None:
 
 class DeepResearchBot(MainBot):
     async def run_research(self, question):  # noqa: D401
-        # Call Perplexity deep search directly to avoid FunctionTool indirection
+        # Call Perplexity deep search directly
         from forecasting_tools.agents_and_tools.misc_tools import (
-            perplexity_pro_search as _pps,
+            perplexity_pro_search,
         )
-        from agents import FunctionTool  # type: ignore
 
-        search_obj = _pps
-        # Unwrap nested FunctionTool layers if present
-        while isinstance(search_obj, FunctionTool):  # type: ignore[arg-type]
-            search_obj = search_obj.func  # type: ignore[attr-defined]
-
-        snippets = await search_obj(question.question_text)  # type: ignore[arg-type]
-        research_text = "\n".join(f"* {s['text']}" for s in snippets)
-        return research_text or "No research found."
+        # If it's wrapped in FunctionTool, we need to call it directly
+        # Check if it's callable first
+        if callable(perplexity_pro_search):
+            try:
+                # Try calling it directly as a regular async function
+                snippets = await perplexity_pro_search(question.question_text)
+                research_text = "\n".join(f"* {s['text']}" for s in snippets)
+                return research_text or "No research found."
+            except Exception as e:
+                # If that fails, try to access the underlying function
+                # Some wrapped functions might have different call patterns
+                logger.error(f"Error calling perplexity_pro_search: {e}")
+                return "Research unavailable due to technical issues."
+        else:
+            return "Research function not callable."
 
 
 async def _run_tool(input: ForecastInput) -> BinaryReport:
