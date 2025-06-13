@@ -18,6 +18,7 @@ from forecasting_tools.front_end.helpers.report_displayer import (
 )
 from forecasting_tools.front_end.helpers.tool_page import ToolPage
 from forecasting_tools.util.jsonable import Jsonable
+from forecasting_tools.forecast_helpers.research_orchestrator import orchestrate_research
 
 logger = logging.getLogger(__name__)
 
@@ -63,9 +64,21 @@ async def _get_input() -> ForecastInput | None:
     return None
 
 
+# ------------------------------------------------------------
+# Custom bot that always runs *deep* research (Perplexity + others)
+# ------------------------------------------------------------
+
+
+class DeepResearchBot(MainBot):
+    async def run_research(self, question):  # noqa: D401
+        snippets = await orchestrate_research(question.question_text, depth="deep")
+        research_text = "\n".join(f"* {s['text']}" for s in snippets)
+        return research_text or "No research found."
+
+
 async def _run_tool(input: ForecastInput) -> BinaryReport:
     with st.spinner("Forecasting... This may take a minute or two..."):
-        report = await MainBot(
+        report = await DeepResearchBot(
             research_reports_per_question=1,
             predictions_per_research_report=5,
             publish_reports_to_metaculus=False,
