@@ -3,6 +3,7 @@ from __future__ import annotations
 import logging
 import os
 import time
+from typing import List
 
 import streamlit as st
 from agents import Agent, RunItem, Runner, Tool, trace
@@ -480,11 +481,15 @@ async def main():
         # convert it into an explicit instruction so the LLM will invoke the
         # advanced forecasting tool.
         processed_prompt = raw_prompt
+        jarvis_mode = False
         if raw_prompt.strip().lower().startswith("jarvis"):
-            question_txt = raw_prompt.strip()[len("jarvis") :].strip()
+            jarvis_mode = True
+            # Remove the trigger word
+            user_query = raw_prompt.strip()[len("jarvis") :].strip()
+            # We instruct the LLM to call *only* the Perplexity deep search tool
             processed_prompt = (
-                "Use forecast_question_tool on the following question: "
-                + question_txt
+                "Research the following question using perplexity_pro_search only "
+                "and provide a structured answer: " + user_query
             )
 
         st.session_state.messages.append({"role": "user", "content": raw_prompt})
@@ -496,6 +501,10 @@ async def main():
 
         prompt_for_response = processed_prompt
 
+    # If JARVIS trigger – override tools to only Perplexity deep search
+    if "jarvis_mode" in locals() and jarvis_mode:
+        active_tools = [perplexity_pro_search]
+
     if st.session_state.messages[-1]["role"] != "assistant":
         with MonetaryCostManager(10) as cost_manager:
             start_time = time.time()
@@ -504,6 +513,16 @@ async def main():
             end_time = time.time()
             st.session_state.last_chat_duration = end_time - start_time
         st.rerun()
+
+# ------------------------------------------------------------------
+# Ensure Streamlit secrets are mirrored into environment variables
+# so that downstream helpers (litellm, Perplexity, AskNews, etc.)
+# can read API keys via ``os.getenv``.
+# ------------------------------------------------------------------
+
+for _key in st.secrets:
+    if _key.upper() not in os.environ:
+        os.environ[_key.upper()] = str(st.secrets[_key])
 
 if __name__ == "__main__":
     import asyncio
