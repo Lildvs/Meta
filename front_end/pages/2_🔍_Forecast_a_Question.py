@@ -88,9 +88,9 @@ class DeepResearchBot(MainBot):
 
     async def run_research(self, question):  # noqa: D401
         if self.jarvis_mode:
-            # JARVIS mode: Force deep research without ToolCritic
+            # JARVIS mode: Force deep research by bypassing ToolCritic
             try:
-                snippets = await self._orchestrate_research_force_deep(question.question_text)
+                snippets = await self._orchestrate_research_bypass_critic(question.question_text)
                 research_text = "\n".join(f"* {s['text']}" for s in snippets)
                 return research_text or "No research found."
             except Exception as e:
@@ -106,55 +106,29 @@ class DeepResearchBot(MainBot):
                 logger.error(f"Error running deep research: {e}")
                 return "Research unavailable due to technical issues."
 
-    async def _orchestrate_research_force_deep(self, query: str) -> list[dict[str, str]]:
-        """Modified orchestrate_research that bypasses ToolCritic for JARVIS mode."""
-        # Import the orchestrate_research function and modify its behavior
-        from forecasting_tools.forecast_helpers.research_orchestrator import _dedupe
-        import asyncio
-        import os
-        from forecasting_tools.forecast_helpers.smart_searcher import SmartSearcher
-        from forecasting_tools.forecast_helpers.asknews_searcher import AskNewsSearcher
-        from forecasting_tools.agents_and_tools.misc_tools import perplexity_pro_search
+    async def _orchestrate_research_bypass_critic(self, query: str) -> list[dict[str, str]]:
+        """Use the regular orchestrate_research but bypass the ToolCritic for JARVIS mode."""
+        # Temporarily patch the ToolCritic to always return True
+        from forecasting_tools.forecast_helpers.tool_critic import ToolCritic
 
-        snippets: list[dict[str, str]] = []
+        # Store the original method
+        original_should_deep_search = ToolCritic.should_deep_search
 
-        # Run SmartSearcher
-        smart_searcher = SmartSearcher(num_searches_to_run=1, num_sites_per_search=5)
-        smart_future = smart_searcher.invoke(query)
+        # Create a patched version that always returns True
+        async def always_deep_search(self, query: str, cost_threshold: float | None = None) -> bool:
+            return True
 
-        # Run AskNews if available
-        asknews_enabled = os.getenv("ASKNEWS_CLIENT_ID") and os.getenv("ASKNEWS_SECRET")
-        ask_task = (
-            AskNewsSearcher().get_formatted_news_async(query) if asknews_enabled else None
-        )
+        try:
+            # Patch the method
+            ToolCritic.should_deep_search = always_deep_search
 
-        # JARVIS mode: Always run Perplexity deep search (bypass ToolCritic)
-        # Call it as a coroutine since it's an async function
-        deep_task = perplexity_pro_search(query)
-
-        # Gather all tasks
-        tasks = [smart_future]
-        if ask_task:
-            tasks.append(ask_task)
-        tasks.append(deep_task)
-
-        results = await asyncio.gather(*tasks, return_exceptions=True)
-
-        # Process results
-        for i, res in enumerate(results):
-            if isinstance(res, Exception):
-                logger.warning(f"Research task {i} failed: {res}")
-                continue
-            if isinstance(res, list):
-                # This is likely from perplexity_pro_search which returns list[dict]
-                snippets.extend(res)
-            else:
-                # This is a string result, wrap it
-                src_name = ["smart_search", "asknews", "perplexity"][i]
-                snippets.append({"source": src_name, "text": str(res)})
-
-        # Use the original dedupe function
-        return _dedupe(snippets)
+            # Call the regular orchestrate_research with depth="deep"
+            # Since we patched the critic, it will always run Perplexity
+            snippets = await orchestrate_research(query, depth="deep")
+            return snippets
+        finally:
+            # Restore the original method
+            ToolCritic.should_deep_search = original_should_deep_search
 
 
 async def _run_tool(input: ForecastInput) -> BinaryReport:
