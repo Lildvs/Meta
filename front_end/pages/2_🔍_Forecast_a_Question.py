@@ -103,13 +103,21 @@ class DeepResearchBot(MainBot):
                 logger.error(f"Full traceback: {traceback.format_exc()}")
                 return "Research unavailable due to technical issues."
         else:
-            # Normal mode: Use standard orchestrate_research with ToolCritic
+            # Normal mode: Always run deep research for forecasting questions
+            # Since this is a forecasting bot, we should always do comprehensive research
             try:
-                snippets = await orchestrate_research(question.question_text, depth="deep")
+                logger.info("Normal mode - running comprehensive research (bypassing ToolCritic for forecasting)")
+                # Use the same bypass method for normal mode too since we're doing forecasting
+                snippets = await self._orchestrate_research_bypass_critic(question.question_text)
+                logger.info(f"Normal research returned {len(snippets)} snippets")
+                for i, snippet in enumerate(snippets):
+                    logger.info(f"Normal snippet {i}: source={snippet.get('source')}, text_length={len(snippet.get('text', ''))}")
                 research_text = "\n".join(f"* {s['text']}" for s in snippets)
                 return research_text or "No research found."
             except Exception as e:
                 logger.error(f"Error running deep research: {e}")
+                import traceback
+                logger.error(f"Full traceback: {traceback.format_exc()}")
                 return "Research unavailable due to technical issues."
 
     async def _orchestrate_research_bypass_critic(self, query: str) -> list[dict[str, str]]:
