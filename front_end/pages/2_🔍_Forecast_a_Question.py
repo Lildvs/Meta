@@ -90,11 +90,17 @@ class DeepResearchBot(MainBot):
         if self.jarvis_mode:
             # JARVIS mode: Force deep research by bypassing ToolCritic
             try:
+                logger.info("JARVIS mode activated - running forced deep research")
                 snippets = await self._orchestrate_research_bypass_critic(question.question_text)
+                logger.info(f"JARVIS research returned {len(snippets)} snippets")
+                for i, snippet in enumerate(snippets):
+                    logger.info(f"Snippet {i}: source={snippet.get('source')}, text_length={len(snippet.get('text', ''))}")
                 research_text = "\n".join(f"* {s['text']}" for s in snippets)
                 return research_text or "No research found."
             except Exception as e:
                 logger.error(f"Error running JARVIS deep research: {e}")
+                import traceback
+                logger.error(f"Full traceback: {traceback.format_exc()}")
                 return "Research unavailable due to technical issues."
         else:
             # Normal mode: Use standard orchestrate_research with ToolCritic
@@ -116,16 +122,22 @@ class DeepResearchBot(MainBot):
         snippets: list[dict[str, str]] = []
 
         # Get all the research sources
+        logger.info("Starting JARVIS research orchestration")
+        logger.info(f"Query: {query}")
+
         smart_searcher = SmartSearcher(num_searches_to_run=1, num_sites_per_search=5)
         smart_future = smart_searcher.invoke(query)
+        logger.info("Created SmartSearcher task")
 
         asknews_enabled = os.getenv("ASKNEWS_CLIENT_ID") and os.getenv("ASKNEWS_SECRET")
+        logger.info(f"AskNews enabled: {asknews_enabled}")
         ask_task = (
             AskNewsSearcher().get_formatted_news_async(query) if asknews_enabled else None
         )
 
         # Call perplexity directly using the same logic as the original function
         perplexity_task = self._call_perplexity_direct(query)
+        logger.info("Created Perplexity task")
 
         # Gather all tasks
         tasks = [smart_future]
@@ -133,40 +145,57 @@ class DeepResearchBot(MainBot):
             tasks.append(ask_task)
         tasks.append(perplexity_task)
 
+        logger.info(f"Running {len(tasks)} research tasks")
         results = await asyncio.gather(*tasks, return_exceptions=True)
+        logger.info("Research tasks completed")
 
         # Process results
         for i, res in enumerate(results):
+            task_name = ["smart_search", "asknews", "perplexity"][i]
             if isinstance(res, Exception):
-                logger.warning(f"Research task {i} failed: {res}")
+                logger.warning(f"Research task {task_name} failed: {res}")
                 continue
             if isinstance(res, list):
                 # This is from perplexity which returns list[dict]
+                logger.info(f"Task {task_name} returned {len(res)} list items")
                 snippets.extend(res)
             else:
                 # This is a string result, wrap it
+                logger.info(f"Task {task_name} returned string result of length {len(str(res))}")
                 src_name = ["smart_search", "asknews", "perplexity"][i]
                 snippets.append({"source": src_name, "text": str(res)})
 
+        logger.info(f"Total snippets before deduplication: {len(snippets)}")
+
         # Deduplicate
         from forecasting_tools.forecast_helpers.research_orchestrator import _dedupe
-        return _dedupe(snippets)
+        deduped = _dedupe(snippets)
+        logger.info(f"Total snippets after deduplication: {len(deduped)}")
+
+        return deduped
 
     async def _call_perplexity_direct(self, query: str) -> list[dict[str, str]]:
         """Direct call to Perplexity API bypassing the @agent_tool decorator."""
         import os
 
+        logger.info("Starting direct Perplexity API call")
+
         try:
             from litellm import acompletion
+            logger.info("litellm import successful")
         except ImportError:
+            logger.error("Failed to import litellm")
             return []
 
         api_key = os.getenv("PERPLEXITY_API_KEY")
         if not api_key:
             logger.warning("PERPLEXITY_API_KEY not found")
             return []
+        else:
+            logger.info(f"PERPLEXITY_API_KEY found (length: {len(api_key)})")
 
         try:
+            logger.info("Making Perplexity API call")
             response = await acompletion(
                 model="perplexity/sonar-pro",
                 messages=[{"role": "user", "content": query}],
@@ -174,6 +203,7 @@ class DeepResearchBot(MainBot):
                 base_url="https://api.perplexity.ai",
                 extra_headers={"Content-Type": "application/json"},
             )
+            logger.info("Perplexity API call successful")
         except Exception as e:
             logger.error(f"Perplexity API call failed: {e}")
             return []
@@ -182,7 +212,9 @@ class DeepResearchBot(MainBot):
 
         # 1) Convert search_results into snippets (preferred – has title)
         search_results = (response.model_extra or {}).get("search_results")  # type: ignore[attr-defined]
+        logger.info(f"Search results found: {bool(search_results)}")
         if isinstance(search_results, list):
+            logger.info(f"Processing {len(search_results)} search results")
             for res in search_results:
                 title = res.get("title") or "Perplexity result"
                 url = res.get("url") or ""
@@ -196,7 +228,9 @@ class DeepResearchBot(MainBot):
         # 2) Fallback – use bare citations if search_results missing
         if not snippets:
             citations = (response.model_extra or {}).get("citations")  # type: ignore[attr-defined]
+            logger.info(f"Citations found: {bool(citations)}")
             if isinstance(citations, list):
+                logger.info(f"Processing {len(citations)} citations")
                 for url in citations:
                     snippets.append({
                         "source": "perplexity",
@@ -205,9 +239,11 @@ class DeepResearchBot(MainBot):
 
         # 3) Still nothing? create one snippet from the first 200 chars of content
         if not snippets:
+            logger.info("No search results or citations, using content preview")
             content_preview = response.choices[0].message.content[:200]
             snippets.append({"source": "perplexity", "text": content_preview})
 
+        logger.info(f"Perplexity returned {len(snippets)} snippets")
         return snippets
 
 
