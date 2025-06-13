@@ -487,9 +487,22 @@ async def main():
             # Remove the trigger word
             user_query = raw_prompt.strip()[len("jarvis") :].strip()
             # We instruct the LLM to call *only* the Perplexity deep search tool
-            processed_prompt = (
-                "Research the following question using perplexity_pro_search only "
-                "and provide a structured answer: " + user_query
+            processed_prompt = clean_indents(
+                f"""
+                You are a forecasting analyst.
+
+                TASK: Assess the probability of the proposition below **after** you have
+                called `perplexity_pro_search` to collect background information.
+
+                • Always call `perplexity_pro_search` exactly once.
+                • Read the snippets carefully.
+                • Produce a final answer following the *structured* template (Summary → Rationale → Citations → Likelihood I am correct).
+                • The Summary must NOT contain raw probability numbers—keep them for the Rationale.
+                • The Rationale must include a single-number probability (0-100 %) and reference the snippet IDs via [1], [2] etc.
+                • The Citations list must reproduce the markdown links returned by Perplexity.
+
+                PROPOSITION: {user_query}
+                """
             )
 
         st.session_state.messages.append({"role": "user", "content": raw_prompt})
