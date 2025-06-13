@@ -104,9 +104,19 @@ class DeepResearchBot(MainBot):
                     # Patch the method
                     ToolCritic.should_deep_search = always_deep_search
 
-                    # Use the proper run_research tool which will now always run deep search
-                    from forecasting_tools.agents_and_tools.misc_tools import run_research
-                    research_text = await run_research(question.question_text, depth="deep")
+                    # Use orchestrate_research directly (same as run_research but without @agent_tool wrapper)
+                    snippets = await orchestrate_research(question.question_text, depth="deep")
+
+                    # Format the same way as run_research does
+                    lines: list[str] = ["### Research findings:\n"]
+                    for snip in snippets:
+                        src = snip["source"]
+                        txt = snip["text"].strip()
+                        if not txt:
+                            continue
+                        lines.append(f"* **{src}** – {txt}")
+
+                    research_text = "\n".join(lines)
                     logger.info(f"JARVIS research completed, text length: {len(research_text)}")
                     return research_text
                 finally:
@@ -119,12 +129,23 @@ class DeepResearchBot(MainBot):
                 logger.error(f"Full traceback: {traceback.format_exc()}")
                 return "Research unavailable due to technical issues."
         else:
-            # Normal mode: Use the proper run_research tool with ToolCritic
+            # Normal mode: Use orchestrate_research directly with ToolCritic
             try:
-                logger.info("Normal mode - using proper research tool with ToolCritic")
-                from forecasting_tools.agents_and_tools.misc_tools import run_research
-                # Use deep mode but let ToolCritic decide whether to run Perplexity
-                research_text = await run_research(question.question_text, depth="deep")
+                logger.info("Normal mode - using orchestrate_research with ToolCritic")
+
+                # Use orchestrate_research directly (same as run_research but without @agent_tool wrapper)
+                snippets = await orchestrate_research(question.question_text, depth="deep")
+
+                # Format the same way as run_research does
+                lines: list[str] = ["### Research findings:\n"]
+                for snip in snippets:
+                    src = snip["source"]
+                    txt = snip["text"].strip()
+                    if not txt:
+                        continue
+                    lines.append(f"* **{src}** – {txt}")
+
+                research_text = "\n".join(lines)
                 logger.info(f"Normal research completed, text length: {len(research_text)}")
                 return research_text
             except Exception as e:
