@@ -133,6 +133,8 @@ def display_messages(messages: list[dict]) -> None:
                 text = content[0]["text"]
             else:
                 text = content
+            if role == "assistant":
+                text = _clean_assistant_markdown(text)
             st.write(ReportDisplayer.clean_markdown(text))
 
 
@@ -486,3 +488,23 @@ async def main():
 if __name__ == "__main__":
     import asyncio
     asyncio.run(main())
+
+# --------------------------------------------------------------
+# Display helpers
+# --------------------------------------------------------------
+
+
+def _clean_assistant_markdown(markdown: str) -> str:  # noqa: D401
+    """Hide internal sections and improve formatting for user display."""
+
+    # 1. Remove the likelihood section entirely
+    lower = markdown.lower()
+    tag = "### likelihood i am correct"
+    if tag in lower:
+        idx = lower.index(tag)
+        markdown = markdown[:idx].rstrip()
+
+    # 2. Ensure bullet points each start on their own line
+    markdown = markdown.replace("• ", "\n• ")
+
+    return markdown
