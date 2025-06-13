@@ -133,6 +133,17 @@ def display_model_selector() -> None:
         raise ValueError(
             "o1 pro and gpt-4.5 are not available for this application."
         )
+
+    # Block OpenRouter models unless the required API key is present.
+    is_openrouter_model = any(
+        key in model_choice.lower()
+        for key in ["openrouter", "gemini", "mixtral", "llama", "claude"]
+    )
+    if is_openrouter_model and not os.getenv("OPENROUTER_API_KEY"):
+        raise ValueError(
+            "OpenRouter models require the OPENROUTER_API_KEY environment variable to be set."
+        )
+
     st.session_state["model_choice"] = model_choice
 
 
