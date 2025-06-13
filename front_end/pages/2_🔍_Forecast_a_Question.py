@@ -88,171 +88,50 @@ class DeepResearchBot(MainBot):
 
     async def run_research(self, question):  # noqa: D401
         if self.jarvis_mode:
-            # JARVIS mode: Force deep research by bypassing ToolCritic
+            # JARVIS mode: Force deep research by temporarily bypassing ToolCritic
             try:
-                logger.info("JARVIS mode activated - running forced deep research")
-                snippets = await self._orchestrate_research_bypass_critic(question.question_text)
-                logger.info(f"JARVIS research returned {len(snippets)} snippets")
-                for i, snippet in enumerate(snippets):
-                    logger.info(f"Snippet {i}: source={snippet.get('source')}, text_length={len(snippet.get('text', ''))}")
-                research_text = "\n".join(f"* {s['text']}" for s in snippets)
-                return research_text or "No research found."
+                logger.info("JARVIS mode activated - forcing deep research")
+
+                # Temporarily patch the ToolCritic to always return True for JARVIS
+                from forecasting_tools.forecast_helpers.tool_critic import ToolCritic
+                original_should_deep_search = ToolCritic.should_deep_search
+
+                async def always_deep_search(self, query: str, cost_threshold: float | None = None) -> bool:
+                    logger.info("JARVIS mode: forcing ToolCritic to approve deep search")
+                    return True
+
+                try:
+                    # Patch the method
+                    ToolCritic.should_deep_search = always_deep_search
+
+                    # Use the proper run_research tool which will now always run deep search
+                    from forecasting_tools.agents_and_tools.misc_tools import run_research
+                    research_text = await run_research(question.question_text, depth="deep")
+                    logger.info(f"JARVIS research completed, text length: {len(research_text)}")
+                    return research_text
+                finally:
+                    # Always restore the original method
+                    ToolCritic.should_deep_search = original_should_deep_search
+
             except Exception as e:
                 logger.error(f"Error running JARVIS deep research: {e}")
                 import traceback
                 logger.error(f"Full traceback: {traceback.format_exc()}")
                 return "Research unavailable due to technical issues."
         else:
-            # Normal mode: Always run deep research for forecasting questions
-            # Since this is a forecasting bot, we should always do comprehensive research
+            # Normal mode: Use the proper run_research tool with ToolCritic
             try:
-                logger.info("Normal mode - running comprehensive research (bypassing ToolCritic for forecasting)")
-                # Use the same bypass method for normal mode too since we're doing forecasting
-                snippets = await self._orchestrate_research_bypass_critic(question.question_text)
-                logger.info(f"Normal research returned {len(snippets)} snippets")
-                for i, snippet in enumerate(snippets):
-                    logger.info(f"Normal snippet {i}: source={snippet.get('source')}, text_length={len(snippet.get('text', ''))}")
-                research_text = "\n".join(f"* {s['text']}" for s in snippets)
-                return research_text or "No research found."
+                logger.info("Normal mode - using proper research tool with ToolCritic")
+                from forecasting_tools.agents_and_tools.misc_tools import run_research
+                # Use deep mode but let ToolCritic decide whether to run Perplexity
+                research_text = await run_research(question.question_text, depth="deep")
+                logger.info(f"Normal research completed, text length: {len(research_text)}")
+                return research_text
             except Exception as e:
                 logger.error(f"Error running deep research: {e}")
                 import traceback
                 logger.error(f"Full traceback: {traceback.format_exc()}")
                 return "Research unavailable due to technical issues."
-
-    async def _orchestrate_research_bypass_critic(self, query: str) -> list[dict[str, str]]:
-        """Use direct research calls for JARVIS mode to bypass FunctionTool issues."""
-        import asyncio
-        import os
-        from forecasting_tools.forecast_helpers.smart_searcher import SmartSearcher
-        from forecasting_tools.forecast_helpers.asknews_searcher import AskNewsSearcher
-
-        snippets: list[dict[str, str]] = []
-
-        # Get all the research sources
-        logger.info("Starting JARVIS research orchestration")
-        logger.info(f"Query: {query}")
-
-        smart_searcher = SmartSearcher(num_searches_to_run=1, num_sites_per_search=5)
-        smart_future = smart_searcher.invoke(query)
-        logger.info("Created SmartSearcher task")
-
-        asknews_enabled = os.getenv("ASKNEWS_CLIENT_ID") and os.getenv("ASKNEWS_SECRET")
-        logger.info(f"AskNews enabled: {asknews_enabled}")
-        ask_task = (
-            AskNewsSearcher().get_formatted_news_async(query) if asknews_enabled else None
-        )
-
-        # Call perplexity directly using the same logic as the original function
-        perplexity_task = self._call_perplexity_direct(query)
-        logger.info("Created Perplexity task")
-
-        # Gather all tasks
-        tasks = [smart_future]
-        if ask_task:
-            tasks.append(ask_task)
-        tasks.append(perplexity_task)
-
-        logger.info(f"Running {len(tasks)} research tasks")
-        results = await asyncio.gather(*tasks, return_exceptions=True)
-        logger.info("Research tasks completed")
-
-        # Process results
-        for i, res in enumerate(results):
-            task_name = ["smart_search", "asknews", "perplexity"][i]
-            if isinstance(res, Exception):
-                logger.warning(f"Research task {task_name} failed: {res}")
-                continue
-            if isinstance(res, list):
-                # This is from perplexity which returns list[dict]
-                logger.info(f"Task {task_name} returned {len(res)} list items")
-                snippets.extend(res)
-            else:
-                # This is a string result, wrap it
-                logger.info(f"Task {task_name} returned string result of length {len(str(res))}")
-                src_name = ["smart_search", "asknews", "perplexity"][i]
-                snippets.append({"source": src_name, "text": str(res)})
-
-        logger.info(f"Total snippets before deduplication: {len(snippets)}")
-
-        # Deduplicate
-        from forecasting_tools.forecast_helpers.research_orchestrator import _dedupe
-        deduped = _dedupe(snippets)
-        logger.info(f"Total snippets after deduplication: {len(deduped)}")
-
-        return deduped
-
-    async def _call_perplexity_direct(self, query: str) -> list[dict[str, str]]:
-        """Direct call to Perplexity API bypassing the @agent_tool decorator."""
-        import os
-
-        logger.info("Starting direct Perplexity API call")
-
-        try:
-            from litellm import acompletion
-            logger.info("litellm import successful")
-        except ImportError:
-            logger.error("Failed to import litellm")
-            return []
-
-        api_key = os.getenv("PERPLEXITY_API_KEY")
-        if not api_key:
-            logger.warning("PERPLEXITY_API_KEY not found")
-            return []
-        else:
-            logger.info(f"PERPLEXITY_API_KEY found (length: {len(api_key)})")
-
-        try:
-            logger.info("Making Perplexity API call")
-            response = await acompletion(
-                model="perplexity/sonar-pro",
-                messages=[{"role": "user", "content": query}],
-                api_key=api_key,
-                base_url="https://api.perplexity.ai",
-                extra_headers={"Content-Type": "application/json"},
-            )
-            logger.info("Perplexity API call successful")
-        except Exception as e:
-            logger.error(f"Perplexity API call failed: {e}")
-            return []
-
-        snippets: list[dict[str, str]] = []
-
-        # 1) Convert search_results into snippets (preferred – has title)
-        search_results = (response.model_extra or {}).get("search_results")  # type: ignore[attr-defined]
-        logger.info(f"Search results found: {bool(search_results)}")
-        if isinstance(search_results, list):
-            logger.info(f"Processing {len(search_results)} search results")
-            for res in search_results:
-                title = res.get("title") or "Perplexity result"
-                url = res.get("url") or ""
-                date = res.get("date")
-                date_txt = f" ({date})" if date else ""
-                snippets.append({
-                    "source": "perplexity",
-                    "text": f"**{title}**{date_txt}\n[link]({url})",
-                })
-
-        # 2) Fallback – use bare citations if search_results missing
-        if not snippets:
-            citations = (response.model_extra or {}).get("citations")  # type: ignore[attr-defined]
-            logger.info(f"Citations found: {bool(citations)}")
-            if isinstance(citations, list):
-                logger.info(f"Processing {len(citations)} citations")
-                for url in citations:
-                    snippets.append({
-                        "source": "perplexity",
-                        "text": f"Perplexity citation: [link]({url})",
-                    })
-
-        # 3) Still nothing? create one snippet from the first 200 chars of content
-        if not snippets:
-            logger.info("No search results or citations, using content preview")
-            content_preview = response.choices[0].message.content[:200]
-            snippets.append({"source": "perplexity", "text": content_preview})
-
-        logger.info(f"Perplexity returned {len(snippets)} snippets")
-        return snippets
 
 
 async def _run_tool(input: ForecastInput) -> BinaryReport:
