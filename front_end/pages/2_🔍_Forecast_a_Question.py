@@ -25,6 +25,7 @@ logger = logging.getLogger(__name__)
 
 class ForecastInput(Jsonable, BaseModel):
     question: BinaryQuestion
+    jarvis_mode: bool = False
 
 
 async def _get_input() -> ForecastInput | None:
@@ -68,11 +69,9 @@ async def _get_input() -> ForecastInput | None:
                 api_json={},
             )
 
-            # Store JARVIS mode in the question object for later use
-            question.jarvis_mode = jarvis_mode  # type: ignore[attr-defined]
-
             return ForecastInput(
                 question=question,
+                jarvis_mode=jarvis_mode,
             )
     return None
 
@@ -83,11 +82,12 @@ async def _get_input() -> ForecastInput | None:
 
 
 class DeepResearchBot(MainBot):
-    async def run_research(self, question):  # noqa: D401
-        # Check if JARVIS mode was triggered
-        jarvis_mode = getattr(question, 'jarvis_mode', False)
+    def __init__(self, jarvis_mode: bool = False, **kwargs):
+        super().__init__(**kwargs)
+        self.jarvis_mode = jarvis_mode
 
-        if jarvis_mode:
+    async def run_research(self, question):  # noqa: D401
+        if self.jarvis_mode:
             # JARVIS mode: Force deep research without ToolCritic
             try:
                 snippets = await self._orchestrate_research_force_deep(question.question_text)
@@ -161,6 +161,7 @@ async def _run_tool(input: ForecastInput) -> BinaryReport:
             predictions_per_research_report=5,
             publish_reports_to_metaculus=False,
             folder_to_save_reports_to=None,
+            jarvis_mode=input.jarvis_mode,
         ).forecast_question(input.question)
         assert isinstance(report, BinaryReport)
         return report
