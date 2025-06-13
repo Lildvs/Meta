@@ -56,6 +56,31 @@ DEFAULT_MESSAGE: dict = {
     "content": "How may I assist you today?",
 }
 
+# ------------------------------
+# Structured answer template constant
+# ------------------------------
+
+
+FORMAT_INSTRUCTION: str = (
+    """
+Return your *final answer* in **exactly** this markdown structure:
+
+### Summary
+• bullet 1
+• bullet 2
+
+### Rationale
+Concise narrative explaining *why* the probability makes sense, with inline citations like [1], [2].
+
+### Citations
+[1] full-url-or-title
+[2] full-url-or-title
+
+### Likelihood I am correct
+NN %
+"""
+)
+
 class ChatSession(BaseModel, Jsonable):
     name: str
     messages: list[dict]
