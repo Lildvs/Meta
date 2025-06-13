@@ -147,6 +147,16 @@ def display_model_selector() -> None:
     st.session_state["model_choice"] = model_choice
 
 
+def display_format_selector() -> None:
+    if "structured_answer" not in st.session_state:
+        st.session_state["structured_answer"] = True
+
+    st.sidebar.checkbox(
+        "Return structured answer (summary / rationale / citations)",
+        key="structured_answer",
+    )
+
+
 def get_chat_tools() -> list[Tool]:
     return [
         TopicGenerator.find_random_headlines_tool,
@@ -303,6 +313,10 @@ async def generate_response(
             input_messages[-1] = dict(input_messages[-1])
             input_messages[-1]["content"] = processed_prompt
 
+            # Inject structured format instruction if enabled
+            if st.session_state.get("structured_answer", False):
+                input_messages.insert(0, {"role": "system", "content": FORMAT_INSTRUCTION})
+
             run_result = await Runner.run(agent, input_messages)
 
             # Append assistant final answer to visible history
@@ -361,6 +375,7 @@ async def main():
         "Clear Chat History", on_click=clear_chat_history
     )
     display_model_selector()
+    display_format_selector()
     active_tools = display_tools()
     display_chat_metadata()
     display_premade_examples()
