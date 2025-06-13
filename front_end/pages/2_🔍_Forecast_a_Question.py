@@ -31,7 +31,9 @@ async def _get_input() -> ForecastInput | None:
     # __display_metaculus_url_input()  # Disabled: hide Metaculus URL input
     with st.form("forecast_form"):
         question_text = st.text_input(
-            "Yes/No Binary Question", key="question_text_box"
+            "Yes/No Binary Question",
+            key="question_text_box",
+            help="💡 Tip: Start your question with 'JARVIS' to force deep research using Perplexity Pro (bypasses the research critic)"
         )
         resolution_criteria = st.text_area(
             "Resolution Criteria (optional)",
@@ -50,6 +52,13 @@ async def _get_input() -> ForecastInput | None:
             if not question_text:
                 st.error("Question Text is required.")
                 return None
+
+            # Check for JARVIS mode trigger
+            jarvis_mode = question_text.strip().lower().startswith("jarvis")
+            if jarvis_mode:
+                # Remove the JARVIS trigger from the question text
+                question_text = question_text.strip()[len("jarvis"):].strip()
+
             question = BinaryQuestion(
                 question_text=question_text,
                 background_info=background_info,
@@ -58,6 +67,10 @@ async def _get_input() -> ForecastInput | None:
                 page_url="",
                 api_json={},
             )
+
+            # Store JARVIS mode in the question object for later use
+            question.jarvis_mode = jarvis_mode  # type: ignore[attr-defined]
+
             return ForecastInput(
                 question=question,
             )
@@ -71,15 +84,74 @@ async def _get_input() -> ForecastInput | None:
 
 class DeepResearchBot(MainBot):
     async def run_research(self, question):  # noqa: D401
-        # Use the research orchestrator for proper deep research
-        # This includes SmartSearcher + AskNews + Perplexity deep search with critic
-        try:
-            snippets = await orchestrate_research(question.question_text, depth="deep")
-            research_text = "\n".join(f"* {s['text']}" for s in snippets)
-            return research_text or "No research found."
-        except Exception as e:
-            logger.error(f"Error running deep research: {e}")
-            return "Research unavailable due to technical issues."
+        # Check if JARVIS mode was triggered
+        jarvis_mode = getattr(question, 'jarvis_mode', False)
+
+        if jarvis_mode:
+            # JARVIS mode: Force deep research without ToolCritic
+            try:
+                snippets = await self._orchestrate_research_force_deep(question.question_text)
+                research_text = "\n".join(f"* {s['text']}" for s in snippets)
+                return research_text or "No research found."
+            except Exception as e:
+                logger.error(f"Error running JARVIS deep research: {e}")
+                return "Research unavailable due to technical issues."
+        else:
+            # Normal mode: Use standard orchestrate_research with ToolCritic
+            try:
+                snippets = await orchestrate_research(question.question_text, depth="deep")
+                research_text = "\n".join(f"* {s['text']}" for s in snippets)
+                return research_text or "No research found."
+            except Exception as e:
+                logger.error(f"Error running deep research: {e}")
+                return "Research unavailable due to technical issues."
+
+    async def _orchestrate_research_force_deep(self, query: str) -> list[dict[str, str]]:
+        """Modified orchestrate_research that bypasses ToolCritic for JARVIS mode."""
+        import asyncio
+        import os
+        from forecasting_tools.forecast_helpers.smart_searcher import SmartSearcher
+        from forecasting_tools.forecast_helpers.asknews_searcher import AskNewsSearcher
+        from forecasting_tools.agents_and_tools.misc_tools import perplexity_pro_search
+
+        snippets: list[dict[str, str]] = []
+
+        smart_searcher = SmartSearcher(num_searches_to_run=1, num_sites_per_search=5)
+        smart_future = smart_searcher.invoke(query)
+
+        asknews_enabled = os.getenv("ASKNEWS_CLIENT_ID") and os.getenv("ASKNEWS_SECRET")
+        ask_task = (
+            AskNewsSearcher().get_formatted_news_async(query) if asknews_enabled else None
+        )
+
+        # JARVIS mode: Always run Perplexity deep search (bypass ToolCritic)
+        deep_task = perplexity_pro_search(query)
+
+        tasks: list[asyncio.Future] = [smart_future]
+        if ask_task:
+            tasks.append(ask_task)
+        tasks.append(deep_task)  # Always include deep search in JARVIS mode
+
+        results = await asyncio.gather(*tasks, return_exceptions=True)
+
+        for i, res in enumerate(results):
+            if isinstance(res, Exception):
+                continue
+            if isinstance(res, list):
+                snippets.extend(res)
+            else:
+                src_name = ["smart_search", "asknews", "perplexity"][i]
+                snippets.append({"source": src_name, "text": str(res)})
+
+        # Deduplicate
+        seen: set[str] = set()
+        deduped: list[dict[str, str]] = []
+        for s in snippets:
+            if s["text"] not in seen:
+                seen.add(s["text"])
+                deduped.append(s)
+
+        return deduped
 
 
 async def _run_tool(input: ForecastInput) -> BinaryReport:
