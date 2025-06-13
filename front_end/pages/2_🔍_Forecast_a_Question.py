@@ -108,6 +108,8 @@ class DeepResearchBot(MainBot):
 
     async def _orchestrate_research_force_deep(self, query: str) -> list[dict[str, str]]:
         """Modified orchestrate_research that bypasses ToolCritic for JARVIS mode."""
+        # Import the orchestrate_research function and modify its behavior
+        from forecasting_tools.forecast_helpers.research_orchestrator import _dedupe
         import asyncio
         import os
         from forecasting_tools.forecast_helpers.smart_searcher import SmartSearcher
@@ -116,42 +118,43 @@ class DeepResearchBot(MainBot):
 
         snippets: list[dict[str, str]] = []
 
+        # Run SmartSearcher
         smart_searcher = SmartSearcher(num_searches_to_run=1, num_sites_per_search=5)
         smart_future = smart_searcher.invoke(query)
 
+        # Run AskNews if available
         asknews_enabled = os.getenv("ASKNEWS_CLIENT_ID") and os.getenv("ASKNEWS_SECRET")
         ask_task = (
             AskNewsSearcher().get_formatted_news_async(query) if asknews_enabled else None
         )
 
         # JARVIS mode: Always run Perplexity deep search (bypass ToolCritic)
+        # Call it as a coroutine since it's an async function
         deep_task = perplexity_pro_search(query)
 
-        tasks: list[asyncio.Future] = [smart_future]
+        # Gather all tasks
+        tasks = [smart_future]
         if ask_task:
             tasks.append(ask_task)
-        tasks.append(deep_task)  # Always include deep search in JARVIS mode
+        tasks.append(deep_task)
 
         results = await asyncio.gather(*tasks, return_exceptions=True)
 
+        # Process results
         for i, res in enumerate(results):
             if isinstance(res, Exception):
+                logger.warning(f"Research task {i} failed: {res}")
                 continue
             if isinstance(res, list):
+                # This is likely from perplexity_pro_search which returns list[dict]
                 snippets.extend(res)
             else:
+                # This is a string result, wrap it
                 src_name = ["smart_search", "asknews", "perplexity"][i]
                 snippets.append({"source": src_name, "text": str(res)})
 
-        # Deduplicate
-        seen: set[str] = set()
-        deduped: list[dict[str, str]] = []
-        for s in snippets:
-            if s["text"] not in seen:
-                seen.add(s["text"])
-                deduped.append(s)
-
-        return deduped
+        # Use the original dedupe function
+        return _dedupe(snippets)
 
 
 async def _run_tool(input: ForecastInput) -> BinaryReport:
