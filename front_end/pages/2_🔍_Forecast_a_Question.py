@@ -107,28 +107,108 @@ class DeepResearchBot(MainBot):
                 return "Research unavailable due to technical issues."
 
     async def _orchestrate_research_bypass_critic(self, query: str) -> list[dict[str, str]]:
-        """Use the regular orchestrate_research but bypass the ToolCritic for JARVIS mode."""
-        # Temporarily patch the ToolCritic to always return True
-        from forecasting_tools.forecast_helpers.tool_critic import ToolCritic
+        """Use direct research calls for JARVIS mode to bypass FunctionTool issues."""
+        import asyncio
+        import os
+        from forecasting_tools.forecast_helpers.smart_searcher import SmartSearcher
+        from forecasting_tools.forecast_helpers.asknews_searcher import AskNewsSearcher
 
-        # Store the original method
-        original_should_deep_search = ToolCritic.should_deep_search
+        snippets: list[dict[str, str]] = []
 
-        # Create a patched version that always returns True
-        async def always_deep_search(self, query: str, cost_threshold: float | None = None) -> bool:
-            return True
+        # Get all the research sources
+        smart_searcher = SmartSearcher(num_searches_to_run=1, num_sites_per_search=5)
+        smart_future = smart_searcher.invoke(query)
+
+        asknews_enabled = os.getenv("ASKNEWS_CLIENT_ID") and os.getenv("ASKNEWS_SECRET")
+        ask_task = (
+            AskNewsSearcher().get_formatted_news_async(query) if asknews_enabled else None
+        )
+
+        # Call perplexity directly using the same logic as the original function
+        perplexity_task = self._call_perplexity_direct(query)
+
+        # Gather all tasks
+        tasks = [smart_future]
+        if ask_task:
+            tasks.append(ask_task)
+        tasks.append(perplexity_task)
+
+        results = await asyncio.gather(*tasks, return_exceptions=True)
+
+        # Process results
+        for i, res in enumerate(results):
+            if isinstance(res, Exception):
+                logger.warning(f"Research task {i} failed: {res}")
+                continue
+            if isinstance(res, list):
+                # This is from perplexity which returns list[dict]
+                snippets.extend(res)
+            else:
+                # This is a string result, wrap it
+                src_name = ["smart_search", "asknews", "perplexity"][i]
+                snippets.append({"source": src_name, "text": str(res)})
+
+        # Deduplicate
+        from forecasting_tools.forecast_helpers.research_orchestrator import _dedupe
+        return _dedupe(snippets)
+
+    async def _call_perplexity_direct(self, query: str) -> list[dict[str, str]]:
+        """Direct call to Perplexity API bypassing the @agent_tool decorator."""
+        import os
 
         try:
-            # Patch the method
-            ToolCritic.should_deep_search = always_deep_search
+            from litellm import acompletion
+        except ImportError:
+            return []
 
-            # Call the regular orchestrate_research with depth="deep"
-            # Since we patched the critic, it will always run Perplexity
-            snippets = await orchestrate_research(query, depth="deep")
-            return snippets
-        finally:
-            # Restore the original method
-            ToolCritic.should_deep_search = original_should_deep_search
+        api_key = os.getenv("PERPLEXITY_API_KEY")
+        if not api_key:
+            logger.warning("PERPLEXITY_API_KEY not found")
+            return []
+
+        try:
+            response = await acompletion(
+                model="perplexity/sonar-pro",
+                messages=[{"role": "user", "content": query}],
+                api_key=api_key,
+                base_url="https://api.perplexity.ai",
+                extra_headers={"Content-Type": "application/json"},
+            )
+        except Exception as e:
+            logger.error(f"Perplexity API call failed: {e}")
+            return []
+
+        snippets: list[dict[str, str]] = []
+
+        # 1) Convert search_results into snippets (preferred – has title)
+        search_results = (response.model_extra or {}).get("search_results")  # type: ignore[attr-defined]
+        if isinstance(search_results, list):
+            for res in search_results:
+                title = res.get("title") or "Perplexity result"
+                url = res.get("url") or ""
+                date = res.get("date")
+                date_txt = f" ({date})" if date else ""
+                snippets.append({
+                    "source": "perplexity",
+                    "text": f"**{title}**{date_txt}\n[link]({url})",
+                })
+
+        # 2) Fallback – use bare citations if search_results missing
+        if not snippets:
+            citations = (response.model_extra or {}).get("citations")  # type: ignore[attr-defined]
+            if isinstance(citations, list):
+                for url in citations:
+                    snippets.append({
+                        "source": "perplexity",
+                        "text": f"Perplexity citation: [link]({url})",
+                    })
+
+        # 3) Still nothing? create one snippet from the first 200 chars of content
+        if not snippets:
+            content_preview = response.choices[0].message.content[:200]
+            snippets.append({"source": "perplexity", "text": content_preview})
+
+        return snippets
 
 
 async def _run_tool(input: ForecastInput) -> BinaryReport:
