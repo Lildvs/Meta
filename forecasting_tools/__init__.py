@@ -47,12 +47,15 @@ from forecasting_tools.agents_and_tools.key_factors_researcher import (
 from forecasting_tools.agents_and_tools.key_factors_researcher import (
     ScoredKeyFactor as ScoredKeyFactor,
 )
-from forecasting_tools.agents_and_tools.question_generators.question_generator import (
-    QuestionGenerator as QuestionGenerator,
-)
-from forecasting_tools.agents_and_tools.question_generators.topic_generator import (
-    TopicGenerator as TopicGenerator,
-)
+# The following heavy imports can trigger circular dependencies when loaded at
+# package import time (e.g. inside Streamlit cold-start).  They are commented
+# out and should be imported explicitly by the callers that need them.
+# from forecasting_tools.agents_and_tools.question_generators.question_generator import (
+#     QuestionGenerator as QuestionGenerator,
+# )
+# from forecasting_tools.agents_and_tools.question_generators.topic_generator import (
+#     TopicGenerator as TopicGenerator,
+# )
 from forecasting_tools.ai_models.ai_utils.ai_misc import (
     clean_indents as clean_indents,
 )
@@ -88,9 +91,9 @@ from forecasting_tools.benchmarking.benchmark_for_bot import (
 from forecasting_tools.benchmarking.benchmarker import (
     Benchmarker as Benchmarker,
 )
-from forecasting_tools.benchmarking.prompt_optimizer import (
-    PromptOptimizer as PromptOptimizer,
-)
+# from forecasting_tools.benchmarking.prompt_optimizer import (
+#     PromptOptimizer as PromptOptimizer,
+# )
 from forecasting_tools.forecast_bots.forecast_bot import (
     ForecastBot as ForecastBot,
 )
